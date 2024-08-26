@@ -55,7 +55,7 @@ export async function updateSession(request: NextRequest) {
   )
 
   // refreshing the auth token
-  const { data, error } = await supabase.auth.getUser()
+  // const { data, error } = await supabase.auth.getUser()
 
   //// If the user is loggedin, they are redirected from main to lobby
   // if (request.nextUrl.pathname === "/" && data?.user) {

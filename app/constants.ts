@@ -1,3 +1,4 @@
 export const constants = {
-    siteUrl: "",
+    siteUrl: "localhost:3000",
+    lobbyCodeLength: 5,
 }
