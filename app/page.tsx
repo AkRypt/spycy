@@ -1,8 +1,6 @@
 'use client';
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { jsonLd } from "./helpers";
 import { greatVibes, raleway } from "./fonts";
 import MainMenu from "./main-menu/page";

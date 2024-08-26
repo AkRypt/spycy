@@ -9,7 +9,7 @@ import { SPY } from "@/app/constants";
 
 export const supabase = createClient();
 
-export function Lobby() {
+export function GamePage() {
     const { lobbyCode } = useParams();
     const router = useRouter();
     const [players, setPlayers] = useState<Player[]>([]);
@@ -73,7 +73,7 @@ export function Lobby() {
 // This is used when the page is receiving some data from the previous page.
 const SuspenseWrapper = () => (
     <Suspense fallback={<div>Loading...</div>}>
-        <Lobby />
+        <GamePage />
     </Suspense>
 )
 

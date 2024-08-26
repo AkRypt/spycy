@@ -1,11 +1,8 @@
 import state from '@/app/context';
-import { Player } from '@/app/interfaces';
-import { createClient } from '@supabase/supabase-js';
+import { Lobby, Player } from '@/app/interfaces';
+import { createClient } from '@/utils/supabase/client';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient();
 
 export const createLobby = async (lobbyCode: string) => {
     state.isLoading = true;
@@ -19,6 +16,7 @@ export const createLobby = async (lobbyCode: string) => {
 
 export const joinLobby = async (lobbyCode: string) => {
     try {
+        console.log("Join lobby called")
         const playerName = localStorage.getItem('playerName');
         let { data: existingLobby } = await supabase
             .from('lobbies')
@@ -53,6 +51,7 @@ export const joinLobby = async (lobbyCode: string) => {
 
 export const unjoinLobby = async (lobbyCode: string) => {
     try {
+        console.log("Unjoin lobby called")
         const playerName = localStorage.getItem('playerName');
         let { data: existingLobby } = await supabase
             .from('lobbies')
@@ -72,7 +71,6 @@ export const unjoinLobby = async (lobbyCode: string) => {
             .eq('lobby_code', lobbyCode)
             .select()
             .single();
-        localStorage.removeItem('lobbyCode');
         return { ok: true, data: updatedLobby };
     } catch (error) {
         console.log(error);
@@ -80,13 +78,13 @@ export const unjoinLobby = async (lobbyCode: string) => {
     }
 };
 
-export const subscribeToLobbyChanges = (lobbyCode: string, onUpdate: (players: Player[]) => void) => {
+export const subscribeToLobbyChanges = (lobbyCode: string, onUpdate: (lobby: Lobby) => void) => {
     const subscription = supabase
         .channel('lobby_changes')
         .on('postgres_changes',
-            { event: 'UPDATE', schema: 'public', table: 'lobbies', filter: `lobby_code=${lobbyCode}` },
+            { event: 'UPDATE', schema: 'public', table: 'lobbies', filter: `lobby_code=eq.${lobbyCode}` },
             (payload) => {
-                onUpdate(payload.new.players || []);
+                onUpdate(payload.new as Lobby);
             }
         )
         .subscribe();

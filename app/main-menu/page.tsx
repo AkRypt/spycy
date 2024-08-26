@@ -4,7 +4,6 @@ import { generateLobbyCode } from '../../utils';
 import { createLobby } from '@/utils/supabase/supabaseHelper';
 import { constants } from '../constants';
 import { useRouter } from 'next/navigation';
-import state from '../context';
 
 export default function MainMenu() {
     const router = useRouter();
