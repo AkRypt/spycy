@@ -1,15 +1,12 @@
 'use client';
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { joinLobby, subscribeToLobbyChanges, unjoinLobby } from "@/utils/supabase/supabaseHelper";
 import { Player } from "@/app/interfaces";
-import { createClient } from "@/utils/supabase/client";
 import { SPY } from "@/app/constants";
 
-export const supabase = createClient();
-
-export function GamePage() {
+export default function GamePage() {
     const { lobbyCode } = useParams();
     const router = useRouter();
     const [players, setPlayers] = useState<Player[]>([]);
@@ -69,12 +66,3 @@ export function GamePage() {
         </div>
     );
 }
-
-// This is used when the page is receiving some data from the previous page.
-const SuspenseWrapper = () => (
-    <Suspense fallback={<div>Loading...</div>}>
-        <GamePage />
-    </Suspense>
-)
-
-export default SuspenseWrapper;

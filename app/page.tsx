@@ -2,22 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { jsonLd } from "./helpers";
-import { greatVibes, raleway } from "./fonts";
 import MainMenu from "./main-menu/page";
-import NameModal from "./components/nameModal";
 
 export default function Home() {
     const router = useRouter();
-
-    // Going to Next Page
-    const goToLobby = () => {
-        router.push('/lobby');
-    }
-
-    // Google Login
-    const onClickGoogleLogin = async () => {
-        router.push('/auth/google')
-    }
 
     return (
         <main className="">

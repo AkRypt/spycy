@@ -1,25 +1,29 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { updateUserData } from "@/utils/firebase/firebaseHelpers";
+import { useUser } from "@/hooks";
+
 
 export default function NameModal() {
-    const [playerName, setPlayerName] = useState('');
+    const [playerInput, setPlayerInput] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const { userId, userFetched, playerName } = useUser();
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            if (!localStorage.getItem('playerName') || localStorage.getItem('playerName') === '') {
-                setShowModal(true);
-            }
+        let loaded = true;
+        if (loaded && userFetched) {
+            setShowModal(playerName?.length === 0);
         }
-    }, []);
+        return () => { loaded = false };
+    }, [userFetched]);
 
     const handleNameSubmit = (e: any) => {
         e.preventDefault();
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('playerName', playerName);
-            setShowModal(false);
-        }
+        updateUserData(userId, { playerName: playerInput })
+            .then(() => {
+                setShowModal(false);
+            });
     }
 
     return (
@@ -30,8 +34,8 @@ export default function NameModal() {
                     <form onSubmit={handleNameSubmit}>
                         <input
                             type="text"
-                            value={playerName}
-                            onChange={(e) => setPlayerName(e.target.value)}
+                            value={playerInput}
+                            onChange={(e) => setPlayerInput(e.target.value)}
                             className="border p-2 mb-4 w-full"
                             placeholder="Your name"
                             required
