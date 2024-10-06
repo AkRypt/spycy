@@ -8,7 +8,12 @@ const state: any = proxy({
         playerRole: "",
         userFetched: false,
     },
-    lobbyID: "",
+    lobbyData: {
+        lobbyCode: "",
+        gameState: "",
+        players: [],
+        lobbyFetched: false,
+    },
     currentPrompt: "",
 });
 

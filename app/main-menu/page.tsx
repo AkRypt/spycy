@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { generateLobbyCode } from '../../utils';
-import { createLobby } from '@/utils/supabase/supabaseHelper';
+import { createLobby } from '@/utils/firebase/firebaseHelpers';
 import { constants } from '../constants';
 import { useRouter } from 'next/navigation';
 

@@ -1,80 +1,86 @@
-'use client';
+"use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense, useMemo } from "react";
-import { joinLobby, subscribeToLobbyChanges, unjoinLobby } from "@/utils/supabase/supabaseHelper";
+import { useEffect, useState } from "react";
+import { joinLobby, subscribeLobby, unjoinLobby, updateLobby } from "@/utils/firebase/firebaseHelpers";
 import { Player } from "@/app/interfaces";
-import { createClient } from "@/utils/supabase/client";
-import { SPY } from "@/app/constants";
+import { GAME_STATE, SPY } from "@/app/constants";
+import { useUser } from "@/hooks";
+import useLobby from "@/hooks/useLobby";
+import Pregame from "./pregame";
+import Game from "./game";
+import Results from "./results";
 
-export const supabase = createClient();
-
-export function Lobby() {
+export default function Lobby() {
     const { lobbyCode } = useParams();
     const router = useRouter();
+    const { userId, userFetched, playerName, playerLobbyCode } = useUser();
+    const { gameState } = useLobby();
     const [players, setPlayers] = useState<Player[]>([]);
 
     // Makes the player join the lobby
-    useMemo(() => {
-        joinLobby(lobbyCode as string)
-            .then((res) => {
-                if (!res?.ok) {
-                    alert(res?.message);
-                    router.push('/');
-                    return;
-                }
-                localStorage.setItem(SPY.lobbyCode, lobbyCode as string);
-                setPlayers(res?.data?.players || []);
-            })
-            .catch((error) => {
-                console.error("Error joining lobby:", error);
-            });
-    }, []);
-
-    // Removes player from the lobby when the page is unloaded
     useEffect(() => {
-        const handleUnload = () => {
-            localStorage.removeItem(SPY.lobbyCode);
-            unjoinLobby(lobbyCode as string);
-        };
-        window.addEventListener('beforeunload', handleUnload);
-        return () => {
-            window.removeEventListener('beforeunload', handleUnload);
-            handleUnload();
-        };
-    }, []);
+        let loaded = true;
+        if (loaded) {
+            if (!userFetched) return;
+            // Return if the player is already in the lobby
+            if (playerLobbyCode === lobbyCode) return;
+            // Return if the player is in a different lobby
+            if (playerLobbyCode !== lobbyCode) {
+                unjoinLobby(playerLobbyCode, userId)
+            }
+
+            // Join the lobby
+            joinLobby(lobbyCode as string, userId, playerName)
+                .then((res) => {
+                    if (!res?.ok) {
+                        alert(res?.message);
+                        router.push('/');
+                        return;
+                    }
+                    localStorage.setItem(SPY.lobbyCode, lobbyCode as string);
+                    setPlayers(res?.data?.players || []);
+                })
+                .catch((error) => {
+                    console.error("Error joining lobby:", error);
+                });
+        }
+        return () => { loaded = false };
+    }, [userFetched]);
 
     // Listening for when players join or leave lobby
     useEffect(() => {
-        const subscription = subscribeToLobbyChanges(lobbyCode as string, (lobby) => {
-            setPlayers(lobby.players);
-        });
+        let loaded = true;
+        let unsubscribe: () => void;
+        if (loaded) {
+            unsubscribe = subscribeLobby(lobbyCode as string, (updatedLobby) => {
+                console.log("updatedLobby", updatedLobby);
+                if (updatedLobby) {
+                    setPlayers(updatedLobby.players);
+                } else {
+                    // Handle case where lobby doesn't exist
+                    console.log("Lobby not found or error occurred");
+                }
+            });
+        }
 
+        // Cleanup subscription on component unmount
         return () => {
-            subscription.unsubscribe();
-        };
-    }, []);
+            loaded = false;
+            unsubscribe();
+        }
+    }, [lobbyCode]);
 
-    const startGame = () => {
-        router.push(`/game/${lobbyCode}`);
-    }
 
     return (
-        <div className="min-h-screen md:px-10">
-            {lobbyCode}
-            {players.map((player) => (
-                <div key={player.name}>{player.name}</div>
-            ))}
-            <button onClick={startGame}>Start</button>
-        </div>
+        <>
+            {gameState === GAME_STATE.GAME ?
+                <Game />
+                : gameState === GAME_STATE.FINISHED ?
+                    <Results />
+                    :
+                    <Pregame />
+            }
+        </>
     );
 }
-
-// This is used when the page is receiving some data from the previous page.
-const SuspenseWrapper = () => (
-    <Suspense fallback={<div>Loading...</div>}>
-        <Lobby />
-    </Suspense>
-)
-
-export default SuspenseWrapper;

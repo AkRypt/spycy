@@ -4,6 +4,13 @@ export const constants = {
 }
 
 export const SPY = {
+    userId: "userId",
     playerName: "playerName",
-    lobbyCode: "lobbyCode"
+    lobbyCode: "lobbyCode",
+}
+
+export const GAME_STATE = {
+    LOBBY: "lobby",
+    GAME: "game",
+    FINISHED: "finished",
 }
