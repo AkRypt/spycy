@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 export default function Game() {
     const router = useRouter();
     const { playerLobbyCode, userId } = useUser();
-    const { lobbyCode, players } = useLobby();
+    const { lobbyCode, players, currentGame } = useLobby();
 
     const endGame = () => {
         updateGameSession(lobbyCode, {
@@ -20,9 +20,8 @@ export default function Game() {
         <div className="min-h-screen md:px-10">
             <h1>GAME SCREEN</h1>
             {lobbyCode}
-            {players.map((player: Player) => (
-                <div key={player.name}>{player.name}</div>
-            ))}
+            {userId === currentGame.spy ? "You are the spy" : "You are not the spy"}
+            {currentGame.word}
 
             <button onClick={endGame}>End Game</button>
 

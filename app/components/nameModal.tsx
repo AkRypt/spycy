@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { updateUserData } from "@/utils/firebase/firebaseHelpers";
 import { useUser } from "@/hooks";
-
 
 export default function NameModal() {
     const [playerInput, setPlayerInput] = useState('');
     const [showModal, setShowModal] = useState(false);
     const { userId, userFetched, playerName } = useUser();
+    const playerNameRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         let loaded = true;
@@ -17,6 +17,13 @@ export default function NameModal() {
         }
         return () => { loaded = false };
     }, [userFetched]);
+
+    useEffect(() => {
+        if (!showModal) return;
+        if (playerNameRef.current) {
+            playerNameRef.current.focus();
+        }
+    }, [showModal]);
 
     const handleNameSubmit = (e: any) => {
         e.preventDefault();
@@ -33,6 +40,7 @@ export default function NameModal() {
                     <h2 className="text-xl mb-4">Enter Your Name</h2>
                     <form onSubmit={handleNameSubmit}>
                         <input
+                            ref={playerNameRef}
                             type="text"
                             value={playerInput}
                             onChange={(e) => setPlayerInput(e.target.value)}

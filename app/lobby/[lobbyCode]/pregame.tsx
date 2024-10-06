@@ -2,7 +2,7 @@ import { GAME_STATE } from "@/app/constants";
 import { Player } from "@/app/interfaces";
 import { useUser } from "@/hooks";
 import useLobby from "@/hooks/useLobby"
-import { unjoinLobby, updateLobby } from "@/utils/firebase/firebaseHelpers";
+import { addWordsToFirestore, unjoinLobby, updateLobby } from "@/utils/firebase/firebaseHelpers";
 import { useRouter } from "next/navigation";
 
 export default function Pregame() {

@@ -3,7 +3,7 @@ import { auth, db } from './firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { GameSession, Lobby, Player } from '@/app/interfaces';
-import { GAME_STATE, SPY } from '@/app/constants';
+import { GAME_STATE, SPY, SPY_TABLES } from '@/app/constants';
 import { formatDateTime } from '..';
 
 /** ***************
@@ -40,7 +40,7 @@ async function signInAnonymouslyAndCreateUser() {
 }
 
 async function createUserDocument(userId: string) {
-    const userDocRef = doc(db, 'users', userId);
+    const userDocRef = doc(db, SPY_TABLES.USERS, userId);
     try {
         await setDoc(userDocRef, {
             createdAt: new Date(),
@@ -56,7 +56,7 @@ async function createUserDocument(userId: string) {
 async function fetchUserData(userId: string, place?: number) {
     state.loading = true;
     try {
-        const userDocRef = doc(db, 'users', userId);
+        const userDocRef = doc(db, SPY_TABLES.USERS, userId);
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
@@ -73,7 +73,7 @@ async function fetchUserData(userId: string, place?: number) {
 }
 
 export async function updateUserData(userId: string, newUserData: any) {
-    const userDocRef = doc(db, 'users', userId);
+    const userDocRef = doc(db, SPY_TABLES.USERS, userId);
     try {
         await setDoc(userDocRef, newUserData, { merge: true });
         state.userData = { ...state.userData, ...newUserData };
@@ -90,7 +90,7 @@ export async function updateUserData(userId: string, newUserData: any) {
 export const createLobby = async (lobbyCode: string) => {
     state.loading = true;
     try {
-        const lobbyRef = doc(db, 'lobbies', lobbyCode);
+        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         await setDoc(lobbyRef, {
             createdAt: new Date(),
             lobbyCode: lobbyCode,
@@ -108,7 +108,7 @@ export const createLobby = async (lobbyCode: string) => {
 
 export const updateLobby = async (lobbyCode: string, newLobbyData: any) => {
     try {
-        const lobbyRef = doc(db, 'lobbies', lobbyCode);
+        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {
@@ -135,11 +135,11 @@ export const updateLobby = async (lobbyCode: string, newLobbyData: any) => {
 export const joinLobby = async (lobbyCode: string, userId: string, playerName: string) => {
     try {
         console.log("Join lobby called");
-        const lobbyRef = doc(db, 'lobbies', lobbyCode);
+        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {
-            console.log("Tried to join a non-existent lobby:", lobbyCode, playerName);
+            console.warn("Tried to join a non-existent lobby:", lobbyCode, playerName);
             return { ok: false, message: 'Lobby not found. Please check the lobby code and try again.' };
         }
 
@@ -147,7 +147,7 @@ export const joinLobby = async (lobbyCode: string, userId: string, playerName: s
         const players = existingLobby.players || [];
         let storedPlayerName = playerName;
         if (players.some((player: Player) => player.name === playerName)) {
-            console.log("Player name already exists:", playerName, lobbyCode);
+            console.warn("Player name already exists:", playerName, lobbyCode);
             storedPlayerName = `${playerName}_${userId.slice(0, 4)}`;
         }
 
@@ -171,11 +171,11 @@ export const joinLobby = async (lobbyCode: string, userId: string, playerName: s
 export const unjoinLobby = async (lobbyCode: string, userId: string) => {
     try {
         console.log("Unjoin lobby called");
-        const lobbyRef = doc(db, 'lobbies', lobbyCode);
+        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {
-            console.log("Tried to unjoin a non-existent lobby!");
+            console.warn("Tried to unjoin a non-existent lobby!");
             return { ok: false, message: 'Lobby not found.' };
         }
 
@@ -193,27 +193,23 @@ export const unjoinLobby = async (lobbyCode: string, userId: string) => {
     }
 };
 
-export const subscribeLobby = (lobbyCode: string, callback: (lobby: Lobby | null) => void) => {
-    const lobbyRef = doc(db, 'lobbies', lobbyCode);
+export const subscribeLobby = (lobbyCode: string) => {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
     try {
         const unsubscribe = onSnapshot(lobbyRef, (doc) => {
             if (doc.exists()) {
                 const lobbyData = doc.data() as Lobby;
                 state.lobbyData = lobbyData;
-                callback(lobbyData);
             } else {
                 console.log("Lobby document does not exist");
-                callback(null);
             }
         }, (error) => {
             console.error("Error listening to lobby updates:", error);
-            callback(null);
         });
 
         return unsubscribe;
     } catch (error) {
         console.error("Error setting up lobby subscription:", error);
-        callback(null);
         // Return a no-op function as fallback
         return () => { };
     }
@@ -222,13 +218,6 @@ export const subscribeLobby = (lobbyCode: string, callback: (lobby: Lobby | null
 /** ***************
  * Game functions
  * *************** */
-
-async function getRandomWord() {
-    const wordsRef = collection(db, 'words');
-    const wordsSnapshot = await getDocs(wordsRef);
-    const words = wordsSnapshot.docs.map((doc: any) => doc.data().word);
-    return words[Math.floor(Math.random() * words.length)];
-}
 
 async function createGameSession(lobbyData: Lobby) {
 
@@ -242,8 +231,7 @@ async function createGameSession(lobbyData: Lobby) {
     const players = lobbyData?.players;
     if (players.length > 0) {
         const randomIndex = Math.floor(Math.random() * players.length);
-        // const randomWord = await getRandomWord();
-        const randomWord = "test";
+        const randomWord = await getRandomWord();
 
         // Calculate the new round number
         const previousRound = lobbyData.games && lobbyData.games.length > 0
@@ -253,7 +241,7 @@ async function createGameSession(lobbyData: Lobby) {
 
         const newGameSession = {
             round: newRound,
-            spyPlayer: players[randomIndex].userId,
+            spy: players[randomIndex].userId,
             word: randomWord,
             startTime: formatDateTime(new Date()),
         };
@@ -263,7 +251,7 @@ async function createGameSession(lobbyData: Lobby) {
             currentGame: newGameSession,
             players: players.map((player, index) => ({
                 ...player,
-                role: index === randomIndex ? 'spy' : 'citizen'
+                role: index === randomIndex ? SPY.SPY : SPY.DEFENDER
             }))
         };
         return updatedLobbyData;
@@ -274,7 +262,7 @@ async function createGameSession(lobbyData: Lobby) {
 
 export async function updateGameSession(lobbyCode: string, gameSessionUpdates: Partial<GameSession>) {
     try {
-        const lobbyRef = doc(db, 'lobbies', lobbyCode);
+        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {
@@ -315,3 +303,48 @@ export async function updateGameSession(lobbyCode: string, gameSessionUpdates: P
         return { ok: false, error: "Failed to update game session" };
     }
 };
+
+/** ***************
+ * Words functions
+ * *************** */
+
+export async function getRandomWord() {
+    try {
+        const wordsRef = collection(db, 'words');
+        const wordsSnapshot = await getDocs(wordsRef);
+
+        if (wordsSnapshot.empty) {
+            throw new Error('No words found in the database');
+        }
+
+        // Get a random document (category)
+        const randomDocIndex = Math.floor(Math.random() * wordsSnapshot.size);
+        const randomDoc = wordsSnapshot.docs[randomDocIndex];
+
+        const wordsArray = randomDoc.data().words;
+
+        if (!Array.isArray(wordsArray) || wordsArray.length === 0) {
+            throw new Error('Invalid words array in the selected document');
+        }
+
+        // Get a random word from the selected document
+        const randomWordIndex = Math.floor(Math.random() * wordsArray.length);
+        return wordsArray[randomWordIndex];
+    } catch (error) {
+        console.error("Error getting random word:", error);
+        return '';
+    }
+}
+
+export async function addWordsToFirestore(wordsData: any) {
+    const wordsCollection = collection(db, 'words');
+
+    for (const [category, words] of Object.entries(wordsData)) {
+        try {
+            await setDoc(doc(wordsCollection, category), { words });
+            console.log(`Added ${category} words to Firestore`);
+        } catch (error) {
+            console.error(`Error adding ${category} words:`, error);
+        }
+    }
+}

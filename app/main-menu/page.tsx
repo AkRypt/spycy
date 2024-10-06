@@ -1,13 +1,22 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { generateLobbyCode } from '../../utils';
-import { createLobby } from '@/utils/firebase/firebaseHelpers';
+import { addWordsToFirestore, createLobby, getRandomWord } from '@/utils/firebase/firebaseHelpers';
 import { constants } from '../constants';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@/hooks';
 
 export default function MainMenu() {
     const router = useRouter();
     const [lobbyCode, setLobbyCode] = useState('');
+    const { userFetched, playerLobbyCode } = useUser();
+    const [randomWord, setRandomWord] = useState<any>('');
+
+    useEffect(() => {
+        if (userFetched && playerLobbyCode) {
+            router.push(`/lobby/${playerLobbyCode}`);
+        }
+    }, [userFetched, playerLobbyCode]);
 
     const createGame = () => {
         const newLobbyCode = generateLobbyCode();
@@ -23,6 +32,10 @@ export default function MainMenu() {
     const joinGame = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         router.push(`/lobby/${lobbyCode}`);
+    };
+
+    const getRando = () => {
+        setRandomWord(getRandomWord());
     };
 
     return (
@@ -51,6 +64,10 @@ export default function MainMenu() {
                     Join Game
                 </button>
             </form>
+
+            <button onClick={addWordsToFirestore}>Add Words</button>
+            <button onClick={getRando}>Get Random Word</button>
+            <p>{randomWord}</p>
         </div>
     );
 }
