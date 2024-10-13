@@ -2,7 +2,7 @@ import "./globals.css";
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { notoSans } from "./fonts";
-import NameModal from "./components/nameModal";
+import NameModal from "./components/modals/nameModal";
 import UserProvider from "./UserProvider";
 
 export { metadata } from "./metadata";

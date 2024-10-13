@@ -11,10 +11,16 @@ export interface GameSession {
     spy: string;
     defenders: any;
     word: string;
-    startTime: string;
-    endTime: string;
+    startTime: any;
+    endTime: any;
     winner: string;
     isGameOver: boolean;
+    votes: any;
+    votingComplete: boolean;
+    votingStartTime: any;
+    votingEndTime: any;
+    votingDuration: number;
+    votingStarted: boolean;
 }
 
 export interface Lobby {

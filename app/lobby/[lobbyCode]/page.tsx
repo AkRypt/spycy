@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, Suspense } from "react";
 import { joinLobby, subscribeLobby, unjoinLobby } from "@/utils/firebase/firebaseHelpers";
 import { GAME_STATE } from "@/app/constants";
 import { useUser } from "@/hooks";
@@ -40,7 +40,7 @@ export default function Lobby() {
     }, [lobbyCode]);
 
     return (
-        <>
+        <Suspense fallback={<div>Loading...</div>}>
             {gameState === GAME_STATE.GAME ?
                 <Game />
                 : gameState === GAME_STATE.FINISHED ?
@@ -48,6 +48,6 @@ export default function Lobby() {
                     :
                     <Pregame />
             }
-        </>
+        </Suspense>
     );
 }

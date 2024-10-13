@@ -1,7 +1,7 @@
 import state from '@/app/context';
 import { auth, db } from './firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction, Timestamp } from 'firebase/firestore';
 import { GameSession, Lobby, Player } from '@/app/interfaces';
 import { GAME_STATE, SPY, SPY_TABLES } from '@/app/constants';
 import { formatDateTime } from '..';
@@ -243,7 +243,8 @@ async function createGameSession(lobbyData: Lobby) {
             round: newRound,
             spy: players[randomIndex].userId,
             word: randomWord,
-            startTime: formatDateTime(new Date()),
+            startTime: serverTimestamp(),
+            timerDuration: 180000,
         };
 
         const updatedLobbyData = {
@@ -285,10 +286,7 @@ export async function updateGameSession(lobbyCode: string, gameSessionUpdates: P
         // If the game is finished, move the current game to the games array and reset the current game
         if (gameSessionUpdates.isGameOver) {
             updatedLobbyData.gameState = GAME_STATE.FINISHED;
-            updatedLobbyData.currentGame.endTime = formatDateTime(new Date());
         }
-
-        console.log("updatedLobbyData", updatedLobbyData);
 
         // Update the lobby document in Firestore
         await updateDoc(lobbyRef, updatedLobbyData as any);
@@ -303,6 +301,82 @@ export async function updateGameSession(lobbyCode: string, gameSessionUpdates: P
         return { ok: false, error: "Failed to update game session" };
     }
 };
+
+/** ***************
+ * Vote functions
+ * *************** */
+
+export async function startVoting(lobbyCode: string) {
+    const votingDuration = 30000; // 30 seconds for voting
+
+    await updateGameSession(lobbyCode, {
+        endTime: serverTimestamp(),
+        votingStartTime: serverTimestamp(),
+        votingDuration: votingDuration,
+        votingStarted: true
+    });
+}
+
+export async function getVotingResults(lobbyCode: string) {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const lobbyDoc = await getDoc(lobbyRef);
+    const lobbyData = lobbyDoc.data() as Lobby;
+
+    if (!lobbyData?.currentGame?.votingComplete) return;
+
+    const votes: any = lobbyData.currentGame?.votes || {};
+    const voteCounts: any = Object.values(votes).reduce((acc: any, votedForId: any) => {
+        acc[votedForId] = (acc[votedForId] || 0) + 1;
+        return acc;
+    }, {});
+
+    if (!voteCounts || Object.keys(voteCounts).length === 0) return;
+    const mostVotedId = Object.entries(voteCounts).reduce((a: any, b: any) => a[1] > b[1] ? a : b)[0];
+
+    const voteResults = {
+        votes,
+        mostVotedId,
+        isSpy: mostVotedId === lobbyData.currentGame?.spy
+    };
+
+    state.lobbyData.currentGame.voteResults = voteResults;
+
+    return voteResults;
+}
+
+export async function castVote(lobbyCode: string, voterId: string, votedForId: string) {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+
+    try {
+        await runTransaction(db, async (transaction: any) => {
+            const lobbyDoc = await transaction.get(lobbyRef);
+            if (!lobbyDoc.exists()) {
+                throw "Lobby does not exist!";
+            }
+
+            const lobbyData = lobbyDoc.data() as Lobby;
+            const currentGame = lobbyData.currentGame;
+            if (!currentGame) {
+                throw "No active game session!";
+            }
+
+            const updatedVotes = { ...currentGame.votes, [voterId]: votedForId };
+            const allPlayersVoted = Object.keys(updatedVotes).length === lobbyData.players.length;
+
+            console.log("allPlayersVoted", allPlayersVoted);
+
+            transaction.update(lobbyRef, {
+                'currentGame.votes': updatedVotes,
+                'currentGame.votingComplete': allPlayersVoted
+            });
+        });
+
+        console.log("Vote cast successfully");
+    } catch (error) {
+        console.error("Error casting vote:", error);
+        throw error;
+    }
+}
 
 /** ***************
  * Words functions
