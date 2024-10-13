@@ -3,6 +3,7 @@ export interface Player {
     name: string;
     role: string;
     prompt: string;
+    score?: number;
     playerLobbyCode: string;
 }
 
@@ -21,6 +22,8 @@ export interface GameSession {
     votingEndTime: any;
     votingDuration: number;
     votingStarted: boolean;
+    scoresUpdated: boolean;
+    voteResults: any;
 }
 
 export interface Lobby {

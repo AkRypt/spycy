@@ -1,7 +1,7 @@
 import state from '@/app/context';
 import { auth, db } from './firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction, Timestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction, Timestamp, increment, arrayRemove, arrayUnion } from 'firebase/firestore';
 import { GameSession, Lobby, Player } from '@/app/interfaces';
 import { GAME_STATE, SPY, SPY_TABLES } from '@/app/constants';
 import { formatDateTime } from '..';
@@ -215,6 +215,43 @@ export const subscribeLobby = (lobbyCode: string) => {
     }
 };
 
+export async function updatePlayerScore(
+    lobbyCode: string,
+    playerId: string,
+    scoreChange: number
+): Promise<void> {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+
+    try {
+        const lobbyDoc = await getDoc(lobbyRef);
+        if (!lobbyDoc.exists()) {
+            throw new Error("Lobby does not exist!");
+        }
+
+        const lobbyData = lobbyDoc.data() as Lobby;
+        const playerIndex = lobbyData.players.findIndex(player => player.userId === playerId);
+
+        if (playerIndex === -1) {
+            throw new Error("Player not found in lobby!");
+        }
+
+        // Create an update object that only modifies the specific player's score
+        const updatedLobbyData = {
+            players: lobbyData.players.map((player, index) =>
+                index === playerIndex
+                    ? { ...player, score: (player.score || 0) + scoreChange }
+                    : player
+            )
+        };
+
+        // Update the lobby document in Firestore
+        await updateDoc(lobbyRef, updatedLobbyData);
+    } catch (error) {
+        console.error("Error updating player score:", error);
+        throw error;
+    }
+}
+
 /** ***************
  * Game functions
  * *************** */
@@ -322,7 +359,8 @@ export async function getVotingResults(lobbyCode: string) {
     const lobbyDoc = await getDoc(lobbyRef);
     const lobbyData = lobbyDoc.data() as Lobby;
 
-    if (!lobbyData?.currentGame?.votingComplete) return;
+    if (!lobbyData?.currentGame?.votingComplete) return null;
+    if (lobbyData.currentGame.scoresUpdated) return lobbyData.currentGame.voteResults; // Scores already updated
 
     const votes: any = lobbyData.currentGame?.votes || {};
     const voteCounts: any = Object.values(votes).reduce((acc: any, votedForId: any) => {
@@ -333,13 +371,34 @@ export async function getVotingResults(lobbyCode: string) {
     if (!voteCounts || Object.keys(voteCounts).length === 0) return;
     const mostVotedId = Object.entries(voteCounts).reduce((a: any, b: any) => a[1] > b[1] ? a : b)[0];
 
+    const isSpy = mostVotedId === lobbyData.currentGame?.spy;
     const voteResults = {
         votes,
         mostVotedId,
-        isSpy: mostVotedId === lobbyData.currentGame?.spy
+        isSpy
     };
 
     state.lobbyData.currentGame.voteResults = voteResults;
+
+    // Update scores based on the voting results
+    await updateDoc(lobbyRef, {
+        'currentGame.voteResults': voteResults,
+        'currentGame.isGameOver': true,
+        'currentGame.scoresUpdated': true,
+    });
+
+    // Update scores
+    if (isSpy) {
+        // Spy was caught, update scores for correct voters
+        for (const [voterId, votedForId] of Object.entries(votes)) {
+            if (votedForId === mostVotedId) {
+                await updatePlayerScore(lobbyCode, voterId, SPY.SPY_VOTE_POINTS);
+            }
+        }
+    } else {
+        // Spy wins, update spy's score
+        await updatePlayerScore(lobbyCode, lobbyData.currentGame.spy, SPY.SPY_WIN_POINTS);
+    }
 
     return voteResults;
 }
@@ -363,15 +422,11 @@ export async function castVote(lobbyCode: string, voterId: string, votedForId: s
             const updatedVotes = { ...currentGame.votes, [voterId]: votedForId };
             const allPlayersVoted = Object.keys(updatedVotes).length === lobbyData.players.length;
 
-            console.log("allPlayersVoted", allPlayersVoted);
-
             transaction.update(lobbyRef, {
                 'currentGame.votes': updatedVotes,
                 'currentGame.votingComplete': allPlayersVoted
             });
         });
-
-        console.log("Vote cast successfully");
     } catch (error) {
         console.error("Error casting vote:", error);
         throw error;

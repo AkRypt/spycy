@@ -1,12 +1,12 @@
 import { GAME_STATE } from "@/app/constants";
 import state from "@/app/context";
+import { Player } from "@/app/interfaces";
 import useLobby from "@/hooks/useLobby";
 import { updateLobby } from "@/utils/firebase/firebaseHelpers";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 export default function Results() {
-    const { lobbyCode, gameState, currentGame } = useLobby();
+    const { lobbyCode, gameState, currentGame, players } = useLobby();
 
     useEffect(() => {
         if (gameState === GAME_STATE.FINISHED) {
@@ -29,6 +29,9 @@ export default function Results() {
 
     return (<>
         <div>Results</div>
+        {players?.map((player: Player) => (
+            <div key={player.userId}>{player.name} - {player.score}</div>
+        ))}
         <button onClick={newGame}>New Game</button>
         <button onClick={backToLobby}>Back to Lobby</button>
     </>

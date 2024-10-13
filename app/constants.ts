@@ -11,6 +11,8 @@ export const SPY = {
     DEFENDER: "defender",
     YOU_ARE_SPY: "You are the spy",
     YOU_ARE_DEFENDER: "You are a defender",
+    SPY_VOTE_POINTS: 500,
+    SPY_WIN_POINTS: 1000,
 }
 
 export const GAME_STATE = {

@@ -33,5 +33,5 @@ export const formatTimeToReadable = (time: number): string => {
 
 // Get player name from player id
 export const getPlayerName = (playerId: string, players: Player[]) => {
-    return players.find(player => player?.userId === playerId)?.name;
+    return players?.find(player => player?.userId === playerId)?.name;
 }
