@@ -1,3 +1,4 @@
+import PrimaryButton from "@/app/components/buttons/PrimaryButton";
 import { GAME_STATE } from "@/app/constants";
 import { Player } from "@/app/interfaces";
 import { useUser } from "@/hooks";
@@ -20,13 +21,27 @@ export default function Pregame() {
     }
 
     return (
-        <div className="min-h-screen md:px-10">
-            {lobbyCode}
+        <div className="bg-white rounded-xl p-4">
+            <div className="text-xl text-center font-bold border-4 border-cyan-300 rounded-md py-1 px-2">
+                {lobbyCode}
+            </div>
+
+            {/* Players List */}
             {players.map((player: Player) => (
-                <div key={player.name}>{player.name}</div>
+                <div className="p-2 border bg-gray-200 rounded-2xl my-1" 
+                key={player.name}>{player.name}</div>
             ))}
-            <button onClick={startGame}>Start</button>
-            <button onClick={leaveLobby}>Leave</button>
+
+            <div className="flex justify-center gap-4">
+                <PrimaryButton
+                    text="Start Game"
+                    onClick={startGame}
+                />
+                <PrimaryButton
+                    text="Leave Game"
+                    onClick={leaveLobby}
+                />
+            </div>
         </div>
     );
 }

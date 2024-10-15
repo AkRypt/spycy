@@ -1,3 +1,4 @@
+import { LobbyCode, PrimaryButton } from "@/app/components";
 import VotingModal from "@/app/components/modals/votingModal";
 import { SPY } from "@/app/constants";
 import state from "@/app/context";
@@ -13,6 +14,7 @@ export default function Game() {
     const { userId } = useUser();
     const { lobbyCode, currentGame } = useLobby();
     const [remainingTime, setRemainingTime] = useState(currentGame?.timerDuration || 300000);
+    const isSpy = userId === currentGame?.spy;
 
     useEffect(() => {
         if (currentGame?.startTime && !currentGame.endTime) {
@@ -51,17 +53,29 @@ export default function Game() {
     }
 
     return (
-        <>
+        <div className="bg-white p-4 rounded">
             <VotingModal endGame={endGame} />
-            <div className="min-h-screen md:px-10">
-                <h1>GAME SCREEN</h1>
-                <p>Lobby Code: {lobbyCode}</p>
-                <p>{userId === currentGame?.spy ? SPY.YOU_ARE_SPY : SPY.YOU_ARE_DEFENDER}</p>
-                <p>Word: {currentGame?.word}</p>
+            <div className="">
+                <LobbyCode text={lobbyCode} />
+                <p className="text-xl text-center font-bold bg-red-500 rounded-md py-1 px-2">
+                    {isSpy ? SPY.YOU_ARE_SPY : SPY.YOU_ARE_DEFENDER}
+                </p>
+                {!isSpy &&
+                    <p className="font-bold text-xl text-center text-cyan-600 my-3">
+                        {currentGame?.word}
+                    </p>
+                }
                 <p>Time Remaining: {formatTime(remainingTime)}</p>
-                <button onClick={endGame}>End Game</button>
-                <button onClick={startVotingPhase}>Start Voting</button>
+                {/* <PrimaryButton
+                    text="End Game"
+                    className="mr-1"
+                    onClick={endGame}
+                /> */}
+                <PrimaryButton
+                    text="Start Voting"
+                    onClick={startVotingPhase}
+                />
             </div>
-        </>
+        </div>
     );
 }

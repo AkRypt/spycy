@@ -60,17 +60,19 @@ export default function VotingModal({ endGame }: { endGame: () => void }) {
     return (
         showModal && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                {!currentGame?.votingComplete
-                    ? <Voting
-                        remainingTime={remainingTime}
-                        selectedPlayer={selectedPlayer}
-                        setSelectedPlayer={setSelectedPlayer}
-                        hasVoted={hasVoted}
-                        handleVote={handleVote}
-                    />
-                    :
-                    <VoteResults endGame={endGame} />
-                }
+                <div className="bg-white p-4 rounded">
+                    {!currentGame?.votingComplete
+                        ? <Voting
+                            remainingTime={remainingTime}
+                            selectedPlayer={selectedPlayer}
+                            setSelectedPlayer={setSelectedPlayer}
+                            hasVoted={hasVoted}
+                            handleVote={handleVote}
+                        />
+                        :
+                        <VoteResults endGame={endGame} />
+                    }
+                </div>
             </div>
         )
     )

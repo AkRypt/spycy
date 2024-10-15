@@ -1,3 +1,4 @@
+import { PrimaryButton } from "@/app/components";
 import { GAME_STATE } from "@/app/constants";
 import state from "@/app/context";
 import { Player } from "@/app/interfaces";
@@ -27,13 +28,21 @@ export default function Results() {
         });
     }
 
-    return (<>
-        <div>Results</div>
-        {players?.map((player: Player) => (
-            <div key={player.userId}>{player.name} - {player.score}</div>
-        ))}
-        <button onClick={newGame}>New Game</button>
-        <button onClick={backToLobby}>Back to Lobby</button>
-    </>
+    return (
+        <div className="bg-white p-4 rounded">
+            <div>Results</div>
+            {players?.map((player: Player) => (
+                <div key={player.userId}>{player.name} - {player.score}</div>
+            ))}
+            <PrimaryButton
+                text="New Game"
+                className="mr-1"
+                onClick={newGame}
+            />
+            <PrimaryButton
+                text="Back to Lobby"
+                onClick={backToLobby}
+            />
+        </div>
     );
 }

@@ -2,6 +2,7 @@
 
 import { Player } from "@/app/interfaces";
 import { useLobby } from "@/hooks";
+import { PrimaryButton } from "@/app/components";
 
 export default function Voting({
     remainingTime,
@@ -34,8 +35,16 @@ export default function Voting({
                     </option>
                 ))}
             </select>
-            <button onClick={handleVote} disabled={hasVoted}>Cast Vote</button>
-            {hasVoted && <p>Your vote has been cast. Waiting for other players...</p>}
+            {
+                !hasVoted ?
+                    <PrimaryButton
+                        text="Cast Vote"
+                        onClick={handleVote}
+                        disabled={hasVoted}
+                    />
+                    :
+                    <p>Your vote has been cast. Waiting for other players...</p>
+            }
         </div>
     )
 };

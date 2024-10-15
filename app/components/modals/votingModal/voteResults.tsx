@@ -2,6 +2,7 @@
 
 import { getPlayerName } from "@/app/helpers";
 import { useGame, useLobby } from "@/hooks";
+import { PrimaryButton } from "@/app/components";
 
 export default function VoteResults({
     endGame
@@ -27,7 +28,10 @@ export default function VoteResults({
                     </p>
                 </>
             )}
-            <button onClick={endGame}>End Game</button>
+            <PrimaryButton
+                text="End Game"
+                onClick={endGame}
+            />
         </div>
     )
 };
