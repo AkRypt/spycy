@@ -1,45 +1,35 @@
+import { LobbyCode } from "@/app/components";
 import PrimaryButton from "@/app/components/buttons/PrimaryButton";
 import { GAME_STATE } from "@/app/constants";
 import { Player } from "@/app/interfaces";
-import { useUser } from "@/hooks";
 import useLobby from "@/hooks/useLobby"
-import { addWordsToFirestore, unjoinLobby, updateLobby } from "@/utils/firebase/firebaseHelpers";
-import { useRouter } from "next/navigation";
+import { updateLobby } from "@/utils/firebase/firebaseHelpers";
 
 export default function Pregame() {
-    const router = useRouter();
-    const { playerLobbyCode, userId } = useUser();
     const { lobbyCode, players } = useLobby();
 
     const startGame = () => {
         updateLobby(lobbyCode as string, { gameState: GAME_STATE.GAME });
     }
 
-    const leaveLobby = async () => {
-        await unjoinLobby(playerLobbyCode, userId);
-        router.push('/');
-    }
-
     return (
-        <div className="bg-white rounded-xl p-4">
-            <div className="text-xl text-center font-bold border-4 border-cyan-300 rounded-md py-1 px-2">
-                {lobbyCode}
-            </div>
+        <div className="p-4">
+            <LobbyCode text={lobbyCode} />
+
+            <h2 className="text-center text-2xl font-bold mb-6">Players</h2>
 
             {/* Players List */}
-            {players.map((player: Player) => (
-                <div className="p-2 border bg-gray-200 rounded-2xl my-1" 
-                key={player.name}>{player.name}</div>
-            ))}
+            <div className="my-4">
+                {players.map((player: Player) => (
+                    <div className="p-2 border bg-gray-800 rounded-2xl my-2 text-center text-xl"
+                        key={player.name}>{player.name}</div>
+                ))}
+            </div>
 
             <div className="flex justify-center gap-4">
                 <PrimaryButton
                     text="Start Game"
                     onClick={startGame}
-                />
-                <PrimaryButton
-                    text="Leave Game"
-                    onClick={leaveLobby}
                 />
             </div>
         </div>

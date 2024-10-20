@@ -9,6 +9,7 @@ import useLobby from "@/hooks/useLobby";
 import Pregame from "./pregame";
 import Game from "./game";
 import Results from "./results";
+import { Background } from "@/app/components";
 
 export default function Lobby() {
     const { lobbyCode } = useParams();
@@ -41,9 +42,7 @@ export default function Lobby() {
 
     return (
         <Suspense fallback={<div>Loading...</div>}>
-            <div className="flex relative h-[100vh] w-full justify-center items-center bg-slate-950">
-                <div className="absolute bottom-0 left-[-20%] right-0 top-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,0,182,.15),rgba(255,255,255,0))]"></div>
-                <div className="absolute bottom-0 right-[-20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,0,182,.15),rgba(255,255,255,0))]"></div>
+            <Background>
 
                 {gameState === GAME_STATE.GAME ?
                     <Game />
@@ -53,7 +52,7 @@ export default function Lobby() {
                         <Pregame />
                 }
 
-            </div>
+            </Background>
         </Suspense>
     );
 }

@@ -53,27 +53,37 @@ export default function Game() {
     }
 
     return (
-        <div className="bg-white p-4 rounded">
+        <div className="flex flex-col p-4 relative h-[90vh]">
             <VotingModal endGame={endGame} />
-            <div className="">
+            <div className="flex flex-col flex-grow">
                 <LobbyCode text={lobbyCode} />
-                <p className="text-xl text-center font-bold bg-red-500 rounded-md py-1 px-2">
-                    {isSpy ? SPY.YOU_ARE_SPY : SPY.YOU_ARE_DEFENDER}
-                </p>
+
+                <p className="text-white text-center text-xl">Time Remaining: {formatTime(remainingTime)}</p>
+
+                <div className="my-6">
+                    {isSpy ?
+                        <p className="text-xl text-center font-bold bg-red-500 rounded-md py-1 px-2">
+                            {SPY.YOU_ARE_SPY}
+                        </p>
+                        :
+                        <p className="text-xl text-center font-bold bg-cyan-500 rounded-md py-1 px-2">
+                            {SPY.YOU_ARE_DEFENDER}
+                        </p>
+                    }
+                </div>
+
                 {!isSpy &&
-                    <p className="font-bold text-xl text-center text-cyan-600 my-3">
-                        {currentGame?.word}
-                    </p>
+                    <div className="flex-grow flex items-center justify-center">
+                        <p className="font-bold text-3xl text-center overflow-wrap break-words text-cyan-500 my-4 mx-2">
+                            {currentGame?.word}
+                        </p>
+                    </div>
                 }
-                <p>Time Remaining: {formatTime(remainingTime)}</p>
-                {/* <PrimaryButton
-                    text="End Game"
-                    className="mr-1"
-                    onClick={endGame}
-                /> */}
+
                 <PrimaryButton
                     text="Start Voting"
                     onClick={startVotingPhase}
+                    className="mb-10 mx-auto"
                 />
             </div>
         </div>

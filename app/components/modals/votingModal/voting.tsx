@@ -20,10 +20,11 @@ export default function Voting({
     const { players } = useLobby();
 
     return (
-        <div>
-            <h2>Vote for the Spy</h2>
-            <p>Time remaining: {remainingTime} seconds</p>
+        <div className="flex flex-col">
+            <h2 className="text-center text-xl font-bold">Vote for the Spy</h2>
+            <p className="text-center text-md my-2">Time remaining: {remainingTime} seconds</p>
             <select
+                className="mt-2 mb-6 bg-gray-700 text-lg rounded-md p-2"
                 value={selectedPlayer}
                 onChange={(e) => setSelectedPlayer(e.target.value)}
                 disabled={hasVoted}
@@ -41,6 +42,7 @@ export default function Voting({
                         text="Cast Vote"
                         onClick={handleVote}
                         disabled={hasVoted}
+                        className="text-xl"
                     />
                     :
                     <p>Your vote has been cast. Waiting for other players...</p>

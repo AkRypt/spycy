@@ -1,4 +1,4 @@
-import { PrimaryButton } from "@/app/components";
+import { LobbyCode, PrimaryButton } from "@/app/components";
 import { GAME_STATE } from "@/app/constants";
 import state from "@/app/context";
 import { Player } from "@/app/interfaces";
@@ -29,20 +29,31 @@ export default function Results() {
     }
 
     return (
-        <div className="bg-white p-4 rounded">
-            <div>Results</div>
-            {players?.map((player: Player) => (
-                <div key={player.userId}>{player.name} - {player.score}</div>
-            ))}
-            <PrimaryButton
-                text="New Game"
-                className="mr-1"
-                onClick={newGame}
-            />
-            <PrimaryButton
-                text="Back to Lobby"
-                onClick={backToLobby}
-            />
+        <div className="p-4">
+            <LobbyCode text={lobbyCode} />
+            <h2 className="text-center text-2xl font-bold mb-6">Results</h2>
+
+            <div className="space-y-4 mb-8">
+                {players?.map((player: Player) => (
+                    <div key={player.userId} className="flex justify-between items-center bg-gray-700 rounded-lg p-3">
+                        <span className="text-xl">{player.name}</span>
+                        <span className="text-xl font-bold">{player.score}</span>
+                    </div>
+                ))}
+            </div>
+
+            <div className="flex flex-col space-y-4">
+                <PrimaryButton
+                    text="Replay Game"
+                    onClick={newGame}
+                    className="w-full text-4xl"
+                />
+                <PrimaryButton
+                    text="Back to Lobby"
+                    onClick={backToLobby}
+                    className="w-full text-xl"
+                />
+            </div>
         </div>
     );
 }

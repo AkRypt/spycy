@@ -13,24 +13,31 @@ export default function VoteResults({
     const { voteResults } = useGame();
 
     return (
-        <div>
-            <h2>Voting Results</h2>
-            <p>The spy is {getPlayerName(currentGame?.spy, players)}</p>
+        <div className="flex flex-col">
+            <h2 className="text-center text-lg font-bold">Voting Results</h2>
+            <p className="text-center text-2xl my-3">The spy is {getPlayerName(currentGame?.spy, players)}</p>
             {voteResults && (
                 <>
-                    <p>The player with the most votes: {
+                    <p className="text-center text-lg my-2">Most votes: {
                         getPlayerName(voteResults?.mostVotedId, players)}
                     </p>
-                    <p>
-                        {voteResults.isSpy
-                            ? "The group successfully identified the spy!"
-                            : "The group voted out a defender!"}
-                    </p>
+
+                    {voteResults.isSpy
+                        ?
+                        <p className="text-center text-bold text-2xl text-cyan-500 my-2">
+                            Defenders Win!
+                        </p>
+                        :
+                        <p className="text-center text-bold text-2xl text-red-500 my-2">
+                            Spy Wins!
+                        </p>
+                    }
                 </>
             )}
             <PrimaryButton
                 text="End Game"
                 onClick={endGame}
+                className="text-xl mt-4"
             />
         </div>
     )

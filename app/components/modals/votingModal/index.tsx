@@ -59,8 +59,8 @@ export default function VotingModal({ endGame }: { endGame: () => void }) {
 
     return (
         showModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div className="bg-white p-4 rounded">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fadeIn">
+                <div className="bg-gray-800 max-w-[90%] py-6 px-8 rounded-xl animate-scaleIn">
                     {!currentGame?.votingComplete
                         ? <Voting
                             remainingTime={remainingTime}
