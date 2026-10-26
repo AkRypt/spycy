@@ -10,6 +10,7 @@ export default function useGame() {
     const spy = useMemo(() => currentGame?.spy, [currentGame?.spy]);
     const defenders = useMemo(() => currentGame?.defenders, [currentGame?.defenders]);
     const word = useMemo(() => currentGame?.word, [currentGame?.word]);
+    const category = useMemo(() => currentGame?.category, [currentGame?.category]);
     const startTime = useMemo(() => currentGame?.startTime, [currentGame?.startTime]);
     const endTime = useMemo(() => currentGame?.endTime, [currentGame?.endTime]);
     const winner = useMemo(() => currentGame?.winner, [currentGame?.winner]);
@@ -26,6 +27,7 @@ export default function useGame() {
         spy,
         defenders,
         word,
+        category,
         startTime,
         endTime,
         winner,

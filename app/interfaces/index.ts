@@ -20,6 +20,8 @@ export interface GameSession {
     spy: string;
     defenders?: string[];
     word: string;
+    /** Word bank category key — shown to the spy (and defenders as context). */
+    category?: string;
     startTime: any;
     endTime?: any;
     winner?: string;

@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { LobbyCode, PrimaryButton } from "@/app/components";
-import PassScreen from "@/app/components/PassScreen";
 import VotingModal from "@/app/components/modals/votingModal";
 import { PLAY_MODE, SPY } from "@/app/constants";
 import state from "@/app/context";
@@ -17,6 +16,7 @@ import {
     localForceFinishVotes,
     localStartVoting,
 } from "@/utils/localLobby";
+import { formatCategoryLabel } from "@/app/words";
 import { useSnapshot } from "valtio";
 
 export default function Game() {
@@ -24,7 +24,6 @@ export default function Game() {
     const { userId } = useUser();
     const { lobbyCode, currentGame, players, playMode, hostId } = useLobby();
     const [remainingTime, setRemainingTime] = useState(currentGame?.timerDuration || 180000);
-    const [voteGate, setVoteGate] = useState(true);
     const [selected, setSelected] = useState("");
     const [hotseatVoted, setHotseatVoted] = useState(false);
 
@@ -33,6 +32,7 @@ export default function Game() {
     const isHost = local || hostId === userId;
     const seats = useMemo(() => activePlayers((players || []) as Player[]), [players]);
     const isSpy = !isHotseat && userId === currentGame?.spy;
+    const categoryLabel = formatCategoryLabel(currentGame?.category || "");
 
     useEffect(() => {
         if (!currentGame?.startTime || currentGame.votingStarted) return;
@@ -61,7 +61,6 @@ export default function Game() {
     }, [currentGame?.votingStarted, isHotseat, snap.showVotingModal]);
 
     useEffect(() => {
-        setVoteGate(true);
         setSelected("");
         setHotseatVoted(false);
     }, [currentGame?.votePassIndex]);
@@ -90,25 +89,19 @@ export default function Game() {
             );
         }
 
-        if (voteGate) {
-            return (
-                <div className="flex flex-1 flex-col">
-                    <LobbyCode text={lobbyCode} />
-                    <PassScreen
-                        playerName={voter.name}
-                        subtitle="Vote privately. Don't show others who you pick."
-                        cta="Show ballot"
-                        onReady={() => setVoteGate(false)}
-                    />
-                </div>
-            );
-        }
-
+        // One screen: pass-to name + ballot (no Continue / Show ballot step)
         return (
-            <div className="flex flex-1 flex-col animate-scaleIn">
+            <div className="flex flex-1 flex-col animate-riseIn">
                 <LobbyCode text={lobbyCode} />
-                <h2 className="text-2xl font-bold text-center mb-1">{voter.name}&apos;s vote</h2>
-                <p className="text-center text-[var(--spycy-muted)] mb-4">Who is the spy?</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-[var(--spycy-muted)] text-center mb-2">
+                    Pass the phone
+                </p>
+                <h2 className="text-3xl sm:text-4xl font-bold text-center mb-1 leading-tight">
+                    Pass to <span className="spycy-logo">{voter.name}</span>
+                </h2>
+                <p className="text-center text-[var(--spycy-muted)] mb-5 text-sm">
+                    Vote privately — who is the spy?
+                </p>
                 <div className="flex flex-col gap-2 mb-6">
                     {seats.map((p) => (
                         <button
@@ -135,11 +128,10 @@ export default function Game() {
                             if (local) localCastVote(voter.userId, selected);
                             else await castVote(lobbyCode as string, voter.userId, selected);
                             setHotseatVoted(true);
-                            setVoteGate(true);
                         }}
                     />
                 ) : (
-                    <p className="text-center text-[var(--spycy-muted)]">Vote locked.</p>
+                    <p className="text-center text-[var(--spycy-muted)] mt-auto py-4">Vote locked. Pass to the next player…</p>
                 )}
             </div>
         );
@@ -169,20 +161,30 @@ export default function Game() {
                     <p className={`text-xl font-bold ${isSpy ? "text-rose-300" : "text-cyan-300"}`}>
                         {isSpy ? SPY.YOU_ARE_SPY : SPY.YOU_ARE_DEFENDER}
                     </p>
+                    {categoryLabel && (
+                        <p className="mt-3 text-sm uppercase tracking-[0.2em] text-[var(--spycy-muted)]">
+                            Category · <span className="text-white tracking-normal normal-case font-semibold">{categoryLabel}</span>
+                        </p>
+                    )}
                     {!isSpy && (
                         <p className="mt-3 text-3xl font-bold break-words text-white">{currentGame?.word}</p>
                     )}
                     {isSpy && (
                         <p className="mt-2 text-sm text-[var(--spycy-muted)]">
-                            Figure out the word without getting voted out.
+                            You know the category — figure out the word without getting voted out.
                         </p>
                     )}
                 </div>
             ) : (
                 <div className="spycy-panel rounded-2xl px-4 py-6 mb-4 text-center">
                     <p className="text-lg font-semibold mb-2">Discussion</p>
+                    {categoryLabel && (
+                        <p className="text-sm text-[var(--spycy-muted)] mb-3">
+                            Category · <span className="text-white font-semibold">{categoryLabel}</span>
+                        </p>
+                    )}
                     <p className="text-[var(--spycy-muted)] text-sm text-balance">
-                        Ask questions out loud. Defenders know the word — the spy is bluffing. When time&apos;s up, pass the phone to vote.
+                        Ask questions out loud. Defenders know the word — the spy only knows the category. When time&apos;s up, pass the phone to vote.
                     </p>
                 </div>
             )}

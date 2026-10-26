@@ -142,11 +142,13 @@ export function localStartReveal() {
     const previousRound =
         lobby.games && lobby.games.length > 0 ? lobby.games[lobby.games.length - 1].round : 0;
 
+    const picked = pickFallbackWord();
     const session: GameSession = {
         round: previousRound + 1,
         spy: spyId,
         defenders: seats.filter((_, i) => i !== spyIndex).map((p) => p.userId),
-        word: pickFallbackWord(),
+        word: picked.word,
+        category: picked.category,
         startTime: null,
         isGameOver: false,
         votes: {},

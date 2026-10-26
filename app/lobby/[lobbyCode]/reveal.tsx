@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { LobbyCode } from "@/app/components";
-import PassScreen from "@/app/components/PassScreen";
 import RoleReveal from "@/app/components/RoleReveal";
 import { PLAY_MODE, SPY } from "@/app/constants";
 import { activePlayers } from "@/app/helpers";
@@ -15,8 +14,9 @@ import { isLocalHotseatCode, localAdvanceReveal } from "@/utils/localLobby";
 export default function Reveal() {
     const { lobbyCode, players, currentGame, playMode, hostId } = useLobby();
     const { userId } = useUser();
-    const [waitingPass, setWaitingPass] = useState(true);
     const [localDone, setLocalDone] = useState(false);
+    /** Remount RoleReveal when the pass seat changes so Reveal resets. */
+    const [seatKey, setSeatKey] = useState(0);
 
     const seats = activePlayers((players || []) as Player[]);
     const index = currentGame?.revealIndex ?? 0;
@@ -62,22 +62,10 @@ export default function Reveal() {
                         playerName={me?.name || "You"}
                         role={myRole}
                         word={currentGame?.word}
+                        category={currentGame?.category}
                         onDone={() => setLocalDone(true)}
                     />
                 )}
-            </div>
-        );
-    }
-
-    if (waitingPass) {
-        return (
-            <div className="flex flex-1 flex-col">
-                <LobbyCode text={lobbyCode} />
-                <PassScreen
-                    playerName={currentSeat.name}
-                    subtitle={`Player ${index + 1} of ${seats.length}. Others look away.`}
-                    onReady={() => setWaitingPass(false)}
-                />
             </div>
         );
     }
@@ -86,13 +74,17 @@ export default function Reveal() {
         <div className="flex flex-1 flex-col">
             <LobbyCode text={lobbyCode} />
             <RoleReveal
+                key={`${currentSeat.userId}-${index}-${seatKey}`}
+                passFirst
                 playerName={currentSeat.name}
+                passSubtitle={`Player ${index + 1} of ${seats.length}. Others look away.`}
                 role={currentSeat.role || (currentGame?.spy === currentSeat.userId ? SPY.SPY : SPY.DEFENDER)}
                 word={currentGame?.word}
+                category={currentGame?.category}
                 onDone={async () => {
-                    setWaitingPass(true);
                     if (local) localAdvanceReveal();
                     else await advanceReveal(lobbyCode as string);
+                    setSeatKey((k) => k + 1);
                 }}
             />
         </div>

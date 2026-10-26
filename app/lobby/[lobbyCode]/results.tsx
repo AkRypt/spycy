@@ -9,6 +9,7 @@ import { Player } from "@/app/interfaces";
 import useLobby from "@/hooks/useLobby";
 import { backToLobby, rematch } from "@/utils/firebase/firebaseHelpers";
 import { isLocalHotseatCode, localBackToLobby, localRematch } from "@/utils/localLobby";
+import { formatCategoryLabel } from "@/app/words";
 
 export default function Results() {
     const { lobbyCode, gameState, currentGame, players, playMode } = useLobby();
@@ -61,9 +62,22 @@ export default function Results() {
                 ) : (
                     <p className="text-[var(--spycy-muted)]">No votes cast this round.</p>
                 )}
-                {currentGame?.word && (
-                    <p className="mt-4 text-sm">
-                        Word was <span className="font-bold text-white">{currentGame.word}</span>
+                {(currentGame?.category || currentGame?.word) && (
+                    <p className="mt-4 text-sm text-[var(--spycy-muted)]">
+                        {currentGame?.category && (
+                            <>
+                                Category{" "}
+                                <span className="font-semibold text-white">
+                                    {formatCategoryLabel(currentGame.category)}
+                                </span>
+                                {currentGame?.word ? " · " : ""}
+                            </>
+                        )}
+                        {currentGame?.word && (
+                            <>
+                                Word <span className="font-bold text-white">{currentGame.word}</span>
+                            </>
+                        )}
                     </p>
                 )}
             </div>

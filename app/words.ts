@@ -19,8 +19,24 @@ export const FALLBACK_WORDS: Record<string, string[]> = {
     ],
 }
 
-export function pickFallbackWord(): string {
-    const categories = Object.values(FALLBACK_WORDS)
-    const words = categories[Math.floor(Math.random() * categories.length)]
-    return words[Math.floor(Math.random() * words.length)]
+export type WordPick = {
+    word: string;
+    category: string;
+}
+
+export function formatCategoryLabel(category: string): string {
+    if (!category) return "";
+    return category
+        .replace(/[_-]+/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function pickFallbackWord(): WordPick {
+    const keys = Object.keys(FALLBACK_WORDS);
+    const category = keys[Math.floor(Math.random() * keys.length)];
+    const words = FALLBACK_WORDS[category];
+    return {
+        word: words[Math.floor(Math.random() * words.length)],
+        category,
+    };
 }

@@ -374,7 +374,7 @@ async function createGameSession(lobbyData: Lobby) {
     }
 
     const randomIndex = Math.floor(Math.random() * players.length);
-    const randomWord = await getRandomWord();
+    const picked = await getRandomWord();
     const spyId = players[randomIndex].userId;
 
     const previousRound = lobbyData.games && lobbyData.games.length > 0
@@ -385,7 +385,8 @@ async function createGameSession(lobbyData: Lobby) {
         round: previousRound + 1,
         spy: spyId,
         defenders: players.filter((_, i) => i !== randomIndex).map((p) => p.userId),
-        word: randomWord,
+        word: picked.word,
+        category: picked.category,
         startTime: null,
         isGameOver: false,
         votes: {},
@@ -636,9 +637,15 @@ export async function getRandomWord() {
             const randomDocIndex = Math.floor(Math.random() * wordsSnapshot.size);
             const randomDoc = wordsSnapshot.docs[randomDocIndex];
             const wordsArray = randomDoc.data().words;
+            const category =
+                (typeof randomDoc.data().category === "string" && randomDoc.data().category) ||
+                randomDoc.id;
 
             if (Array.isArray(wordsArray) && wordsArray.length > 0) {
-                return wordsArray[Math.floor(Math.random() * wordsArray.length)];
+                return {
+                    word: wordsArray[Math.floor(Math.random() * wordsArray.length)],
+                    category,
+                };
             }
         }
     } catch (error) {
