@@ -7,6 +7,7 @@ import { constants, PLAY_MODE, PlayMode } from '../constants';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks';
 import { Background, PrimaryButton, TextInput } from '../components';
+import { SPYCY_JUST_LEFT_KEY } from '../components/LobbyCode';
 import { rockSalt } from '../fonts';
 
 export default function MainMenu() {
@@ -17,9 +18,13 @@ export default function MainMenu() {
     const { userFetched, playerLobbyCode, userId, playerName } = useUser();
 
     useEffect(() => {
-        if (userFetched && playerLobbyCode) {
-            router.push(`/lobby/${playerLobbyCode}`);
+        if (!userFetched || !playerLobbyCode) return;
+        // Skip auto-rejoin right after Leave so the user stays on the menu.
+        if (typeof window !== 'undefined' && sessionStorage.getItem(SPYCY_JUST_LEFT_KEY) === '1') {
+            sessionStorage.removeItem(SPYCY_JUST_LEFT_KEY);
+            return;
         }
+        router.replace(`/lobby/${playerLobbyCode}`);
     }, [userFetched, playerLobbyCode, router]);
 
     const createOnline = async () => {

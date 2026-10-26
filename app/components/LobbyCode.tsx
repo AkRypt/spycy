@@ -6,8 +6,28 @@ import { unjoinLobby } from "@/utils/firebase/firebaseHelpers";
 import { useRouter } from "next/navigation";
 import SuccessToast from "./successToast";
 import { PLAY_MODE } from "@/app/constants";
+import state from "@/app/context";
 import useLobby from "@/hooks/useLobby";
 import { isLocalHotseatCode, localLeave } from "@/utils/localLobby";
+
+/** Session flag so home does not bounce the user straight back into a lobby they just left. */
+export const SPYCY_JUST_LEFT_KEY = "spycy_just_left";
+
+function clearLobbyClientState() {
+    state.userData = { ...state.userData, playerLobbyCode: "" };
+    state.lobbyData = {
+        lobbyCode: "",
+        gameState: "",
+        players: [],
+        lobbyFetched: false,
+        currentGame: null,
+        playMode: undefined,
+        hostId: undefined,
+    };
+    if (typeof window !== "undefined") {
+        sessionStorage.setItem(SPYCY_JUST_LEFT_KEY, "1");
+    }
+}
 
 export default function LobbyCode({ ...props }) {
     const router = useRouter();
@@ -18,12 +38,19 @@ export default function LobbyCode({ ...props }) {
     const local = playMode === PLAY_MODE.HOTSEAT && isLocalHotseatCode(code);
 
     const leaveLobby = async () => {
-        if (local) {
+        const codeToLeave = (playerLobbyCode || code || "").toUpperCase();
+
+        // Clear first so MainMenu's auto-rejoin cannot race us back into the lobby.
+        clearLobbyClientState();
+        if (local || playMode === PLAY_MODE.HOTSEAT) {
             localLeave();
-        } else if (playerLobbyCode) {
-            await unjoinLobby(playerLobbyCode, userId);
+            clearLobbyClientState();
+        } else if (codeToLeave && userId) {
+            await unjoinLobby(codeToLeave, userId);
+            clearLobbyClientState();
         }
-        router.push("/");
+
+        router.replace("/");
     };
 
     const copyCode = () => {
