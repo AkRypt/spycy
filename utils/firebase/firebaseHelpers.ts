@@ -37,6 +37,11 @@ async function signInAnonymouslyAndCreateUser() {
     } catch (error) {
         console.error("Error in anonymous sign-in:", error);
         state.error = "Failed to sign in anonymously";
+        // Pass & play does not need Auth; mark fetched so the menu stays usable.
+        state.userData = {
+            ...state.userData,
+            userFetched: true,
+        };
     }
 }
 
