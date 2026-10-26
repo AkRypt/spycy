@@ -2,6 +2,9 @@
   "name": "spycy",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -9,12 +12,11 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.2.0",
-    "@supabase/supabase-js": "^2.42.0",
     "@vercel/analytics": "^1.2.2",
     "@vercel/speed-insights": "^1.0.10",
     "cookies-next": "^4.2.1",
     "firebase": "^10.14.0",
+    "firebase-admin": "^14.5.0",
     "next": "^14.2.14",
     "react": "^18",
     "react-dom": "^18",

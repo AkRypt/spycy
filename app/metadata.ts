@@ -1,8 +1,8 @@
 import { Metadata } from "next";
 import { constants } from "./constants";
 
-const title = "Spycy"
-const description = "A fun spy game for everyone"
+const title = "spYcy"
+const description = "One spy. One word. Bluff, question, and vote them out — online or pass-and-play."
 
 export const metadata: Metadata = {
   title: title,

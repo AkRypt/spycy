@@ -1,6 +1,10 @@
 export const constants = {
-    siteUrl: "localhost:3000",
+    siteUrl: "https://spycy.vercel.app",
     lobbyCodeLength: 5,
+    discussDurationMs: 180_000,
+    votingDurationMs: 45_000,
+    minPlayers: 3,
+    maxPlayers: 10,
 }
 
 export const SPY = {
@@ -17,11 +21,21 @@ export const SPY = {
 
 export const GAME_STATE = {
     LOBBY: "lobby",
+    REVEAL: "reveal",
     GAME: "game",
     FINISHED: "finished",
 }
 
+export const PLAY_MODE = {
+    ONLINE: "online",
+    HOTSEAT: "hotseat",
+} as const
+
+export type PlayMode = (typeof PLAY_MODE)[keyof typeof PLAY_MODE]
+
+/** Namespaced for shared Firebase project (akxh-games). */
 export const SPY_TABLES = {
-    USERS: "users",
-    LOBBIES: "lobbies",
+    USERS: "spycy_users",
+    LOBBIES: "spycy_lobbies",
+    WORDS: "spycy_words",
 }

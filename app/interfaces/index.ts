@@ -4,32 +4,51 @@ export interface Player {
     role: string;
     prompt: string;
     score?: number;
-    playerLobbyCode: string;
+    playerLobbyCode?: string;
+    isHost?: boolean;
+    isSpectator?: boolean;
+}
+
+export interface VoteResults {
+    votes: Record<string, string>;
+    mostVotedId: string;
+    isSpy: boolean;
 }
 
 export interface GameSession {
     round: number;
     spy: string;
-    defenders: any;
+    defenders?: string[];
     word: string;
+    /** Word bank category key — shown to the spy (and defenders as context). */
+    category?: string;
     startTime: any;
-    endTime: any;
-    winner: string;
+    endTime?: any;
+    winner?: string;
     isGameOver: boolean;
-    votes: any;
+    votes: Record<string, string>;
     votingComplete: boolean;
-    votingStartTime: any;
-    votingEndTime: any;
+    votingStartTime?: any;
+    votingEndTime?: any;
     votingDuration: number;
     votingStarted: boolean;
     scoresUpdated: boolean;
-    voteResults: any;
+    voteResults?: VoteResults | null;
+    timerDuration: number;
+    /** Pass-and-play / shared reveal cursor */
+    revealIndex: number;
+    revealComplete: boolean;
+    /** Hot-seat voting: whose turn to cast a private vote */
+    votePassIndex: number;
 }
 
 export interface Lobby {
     lobbyCode: string;
     players: Player[];
     gameState: string;
+    playMode?: "online" | "hotseat";
+    hostId?: string;
     currentGame?: GameSession | null;
-    games: GameSession[];
+    games?: GameSession[];
+    createdAt?: any;
 }

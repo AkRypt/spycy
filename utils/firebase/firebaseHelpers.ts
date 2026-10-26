@@ -1,10 +1,11 @@
 import state from '@/app/context';
 import { auth, db } from './firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction, Timestamp, increment, arrayRemove, arrayUnion } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { GameSession, Lobby, Player } from '@/app/interfaces';
-import { GAME_STATE, SPY, SPY_TABLES } from '@/app/constants';
-import { formatDateTime } from '..';
+import { constants, GAME_STATE, PLAY_MODE, PlayMode, SPY, SPY_TABLES } from '@/app/constants';
+import { pickFallbackWord } from '@/app/words';
+import { makeLocalPlayerId } from '..';
 
 /** ***************
  * User functions
@@ -32,10 +33,15 @@ async function signInAnonymouslyAndCreateUser() {
         state.userData.userId = userId;
         localStorage.setItem(SPY.userId, userId);
         await createUserDocument(userId);
-        await fetchUserData(userId, 3);
+        await fetchUserData(userId);
     } catch (error) {
         console.error("Error in anonymous sign-in:", error);
         state.error = "Failed to sign in anonymously";
+        // Pass & play does not need Auth; mark fetched so the menu stays usable.
+        state.userData = {
+            ...state.userData,
+            userFetched: true,
+        };
     }
 }
 
@@ -45,7 +51,6 @@ async function createUserDocument(userId: string) {
         await setDoc(userDocRef, {
             createdAt: new Date(),
             userId: userId,
-            // Add any other initial user data you want to store
         }, { merge: true });
     } catch (error) {
         console.error("Error creating/updating user document:", error);
@@ -53,7 +58,7 @@ async function createUserDocument(userId: string) {
     }
 }
 
-async function fetchUserData(userId: string, place?: number) {
+async function fetchUserData(userId: string) {
     state.loading = true;
     try {
         const userDocRef = doc(db, SPY_TABLES.USERS, userId);
@@ -64,9 +69,10 @@ async function fetchUserData(userId: string, place?: number) {
             state.userData.userFetched = true;
         } else {
             await createUserDocument(userId);
+            state.userData.userFetched = true;
         }
     } catch (error) {
-        console.error("Error fetching/creating user data:", error, userId, place);
+        console.error("Error fetching/creating user data:", error, userId);
         state.error = "Failed to fetch or create user data";
     }
     state.loading = false;
@@ -87,18 +93,26 @@ export async function updateUserData(userId: string, newUserData: any) {
  * Lobby functions
  * *************** */
 
-export const createLobby = async (lobbyCode: string) => {
+export const createLobby = async (
+    lobbyCode: string,
+    hostId: string,
+    playMode: PlayMode = PLAY_MODE.ONLINE
+) => {
     state.loading = true;
     try {
         const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         await setDoc(lobbyRef, {
             createdAt: new Date(),
-            lobbyCode: lobbyCode,
+            lobbyCode,
             gameState: GAME_STATE.LOBBY,
+            playMode,
+            hostId,
             players: [],
+            games: [],
+            currentGame: null,
         });
         state.loading = false;
-        return { ok: true, data: { lobbyCode: lobbyCode } };
+        return { ok: true, data: { lobbyCode } };
     } catch (error) {
         console.error("Error creating lobby:", error);
         state.loading = false;
@@ -116,11 +130,21 @@ export const updateLobby = async (lobbyCode: string, newLobbyData: any) => {
         }
 
         const currentLobbyData = lobbyDoc.data() as Lobby;
-        let updatedLobbyData = { ...currentLobbyData, ...newLobbyData };
+        let updatedLobbyData: any = { ...currentLobbyData, ...newLobbyData };
 
-        // If we're starting the game, create a new game session
-        if (newLobbyData.gameState === GAME_STATE.GAME) {
-            updatedLobbyData = await createGameSession(updatedLobbyData);
+        if (newLobbyData.gameState === GAME_STATE.REVEAL || newLobbyData.gameState === GAME_STATE.GAME) {
+            const needsNewSession =
+                !currentLobbyData.currentGame ||
+                currentLobbyData.gameState === GAME_STATE.FINISHED ||
+                currentLobbyData.gameState === GAME_STATE.LOBBY;
+
+            if (needsNewSession) {
+                updatedLobbyData = await createGameSession({
+                    ...currentLobbyData,
+                    ...newLobbyData,
+                    gameState: newLobbyData.gameState,
+                });
+            }
         }
 
         await updateDoc(lobbyRef, updatedLobbyData);
@@ -129,38 +153,69 @@ export const updateLobby = async (lobbyCode: string, newLobbyData: any) => {
     } catch (error) {
         console.error("Error updating lobby:", error);
         state.error = "Failed to update lobby";
+        return { ok: false, error: String(error) };
     }
 };
 
 export const joinLobby = async (lobbyCode: string, userId: string, playerName: string) => {
     try {
-        console.log("Join lobby called");
-        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+        const code = String(lobbyCode).toUpperCase();
+        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, code);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {
-            console.warn("Tried to join a non-existent lobby:", lobbyCode, playerName);
             return { ok: false, message: 'Lobby not found. Please check the lobby code and try again.' };
         }
 
         const existingLobby = lobbyDoc.data() as Lobby;
-        const players = existingLobby.players || [];
-        let storedPlayerName = playerName;
-        if (players.some((player: Player) => player.name === playerName)) {
-            console.warn("Player name already exists:", playerName, lobbyCode);
-            storedPlayerName = `${playerName}_${userId.slice(0, 4)}`;
+
+        if (existingLobby.gameState !== GAME_STATE.LOBBY) {
+            const alreadyIn = (existingLobby.players || []).some((p) => p.userId === userId);
+            if (!alreadyIn) {
+                return { ok: false, message: 'This game has already started.' };
+            }
+            state.lobbyData = existingLobby;
+            return { ok: true, data: existingLobby };
         }
 
-        const currentPlayer = { userId, name: storedPlayerName, role: 'lobby_player', prompt: '' };
-        const updatedPlayers: any = [...players, currentPlayer];
-        await updateDoc(lobbyRef, { players: updatedPlayers });
+        const players = existingLobby.players || [];
+        const existingIndex = players.findIndex((player: Player) => player.userId === userId);
+        if (existingIndex !== -1) {
+            state.lobbyData = existingLobby;
+            await updateUserData(userId, { playerLobbyCode: code });
+            return { ok: true, data: existingLobby };
+        }
 
-        /** Updating user lobby code */
-        await updateUserData(userId, { playerLobbyCode: lobbyCode });
+        if (players.length >= constants.maxPlayers) {
+            return { ok: false, message: 'Lobby is full.' };
+        }
 
-        const data = { ...existingLobby, players: updatedPlayers };
+        let storedPlayerName = playerName.trim() || 'Player';
+        if (players.some((player: Player) => player.name.toLowerCase() === storedPlayerName.toLowerCase())) {
+            storedPlayerName = `${storedPlayerName}_${userId.slice(0, 4)}`;
+        }
+
+        const isHost = existingLobby.hostId === userId || players.length === 0;
+        const currentPlayer: Player = {
+            userId,
+            name: storedPlayerName,
+            role: 'lobby_player',
+            prompt: '',
+            score: 0,
+            isHost,
+            isSpectator: false,
+        };
+        const updatedPlayers = [...players, currentPlayer];
+        const patch: any = { players: updatedPlayers };
+        if (!existingLobby.hostId) {
+            patch.hostId = userId;
+        }
+
+        await updateDoc(lobbyRef, patch);
+        await updateUserData(userId, { playerLobbyCode: code });
+
+        const data = { ...existingLobby, ...patch };
         state.lobbyData = data;
-
         return { ok: true, data };
     } catch (error) {
         console.log(error);
@@ -168,22 +223,82 @@ export const joinLobby = async (lobbyCode: string, userId: string, playerName: s
     }
 };
 
+/** Hot-seat: add a local named seat (no second auth). */
+export const addHotseatPlayer = async (lobbyCode: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return { ok: false, message: 'Name required' };
+
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const lobbyDoc = await getDoc(lobbyRef);
+    if (!lobbyDoc.exists()) return { ok: false, message: 'Lobby not found' };
+
+    const lobby = lobbyDoc.data() as Lobby;
+    if (lobby.playMode !== PLAY_MODE.HOTSEAT) {
+        return { ok: false, message: 'Not a pass-and-play lobby' };
+    }
+    if ((lobby.players || []).length >= constants.maxPlayers) {
+        return { ok: false, message: 'Lobby is full' };
+    }
+    if ((lobby.players || []).some((p) => p.name.toLowerCase() === trimmed.toLowerCase())) {
+        return { ok: false, message: 'Name already taken' };
+    }
+
+    const player: Player = {
+        userId: makeLocalPlayerId(trimmed, (lobby.players || []).length),
+        name: trimmed,
+        role: 'lobby_player',
+        prompt: '',
+        score: 0,
+        isHost: (lobby.players || []).length === 0,
+        isSpectator: false,
+    };
+    const players = [...(lobby.players || []), player];
+    await updateDoc(lobbyRef, { players });
+    return { ok: true, data: players };
+};
+
+export const removePlayer = async (lobbyCode: string, targetUserId: string) => {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const lobbyDoc = await getDoc(lobbyRef);
+    if (!lobbyDoc.exists()) return { ok: false, message: 'Lobby not found' };
+
+    const lobby = lobbyDoc.data() as Lobby;
+    const players = (lobby.players || []).filter((p) => p.userId !== targetUserId);
+    await updateDoc(lobbyRef, { players });
+    return { ok: true };
+};
+
+export const setPlayerSpectator = async (
+    lobbyCode: string,
+    targetUserId: string,
+    isSpectator: boolean
+) => {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const lobbyDoc = await getDoc(lobbyRef);
+    if (!lobbyDoc.exists()) return { ok: false };
+
+    const lobby = lobbyDoc.data() as Lobby;
+    const players = (lobby.players || []).map((p) =>
+        p.userId === targetUserId ? { ...p, isSpectator } : p
+    );
+    await updateDoc(lobbyRef, { players });
+    return { ok: true };
+};
+
 export const unjoinLobby = async (lobbyCode: string, userId: string) => {
     try {
-        console.log("Unjoin lobby called");
         const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {
-            console.warn("Tried to unjoin a non-existent lobby!");
             return { ok: false, message: 'Lobby not found.' };
         }
 
         const existingLobby = lobbyDoc.data() as Lobby;
-        const updatedPlayers = existingLobby.players.filter((player: Player) => player.userId !== userId);
+        const updatedPlayers = (existingLobby.players || []).filter(
+            (player: Player) => player.userId !== userId
+        );
         await updateDoc(lobbyRef, { players: updatedPlayers });
-
-        /** Updating user lobby code */
         await updateUserData(userId, { playerLobbyCode: '' });
 
         return { ok: true, data: { ...existingLobby, players: updatedPlayers } };
@@ -194,12 +309,12 @@ export const unjoinLobby = async (lobbyCode: string, userId: string) => {
 };
 
 export const subscribeLobby = (lobbyCode: string) => {
-    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const code = String(lobbyCode).toUpperCase();
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, code);
     try {
-        const unsubscribe = onSnapshot(lobbyRef, (doc) => {
-            if (doc.exists()) {
-                const lobbyData = doc.data() as Lobby;
-                state.lobbyData = lobbyData;
+        const unsubscribe = onSnapshot(lobbyRef, (docSnap) => {
+            if (docSnap.exists()) {
+                state.lobbyData = { ...docSnap.data(), lobbyFetched: true };
             } else {
                 console.log("Lobby document does not exist");
             }
@@ -210,7 +325,6 @@ export const subscribeLobby = (lobbyCode: string) => {
         return unsubscribe;
     } catch (error) {
         console.error("Error setting up lobby subscription:", error);
-        // Return a no-op function as fallback
         return () => { };
     }
 };
@@ -222,80 +336,124 @@ export async function updatePlayerScore(
 ): Promise<void> {
     const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
 
-    try {
-        const lobbyDoc = await getDoc(lobbyRef);
-        if (!lobbyDoc.exists()) {
-            throw new Error("Lobby does not exist!");
-        }
-
-        const lobbyData = lobbyDoc.data() as Lobby;
-        const playerIndex = lobbyData.players.findIndex(player => player.userId === playerId);
-
-        if (playerIndex === -1) {
-            throw new Error("Player not found in lobby!");
-        }
-
-        // Create an update object that only modifies the specific player's score
-        const updatedLobbyData = {
-            players: lobbyData.players.map((player, index) =>
-                index === playerIndex
-                    ? { ...player, score: (player.score || 0) + scoreChange }
-                    : player
-            )
-        };
-
-        // Update the lobby document in Firestore
-        await updateDoc(lobbyRef, updatedLobbyData);
-    } catch (error) {
-        console.error("Error updating player score:", error);
-        throw error;
+    const lobbyDoc = await getDoc(lobbyRef);
+    if (!lobbyDoc.exists()) {
+        throw new Error("Lobby does not exist!");
     }
+
+    const lobbyData = lobbyDoc.data() as Lobby;
+    const playerIndex = lobbyData.players.findIndex(player => player.userId === playerId);
+    if (playerIndex === -1) {
+        throw new Error("Player not found in lobby!");
+    }
+
+    const updatedLobbyData = {
+        players: lobbyData.players.map((player, index) =>
+            index === playerIndex
+                ? { ...player, score: (player.score || 0) + scoreChange }
+                : player
+        )
+    };
+
+    await updateDoc(lobbyRef, updatedLobbyData);
 }
 
 /** ***************
  * Game functions
  * *************** */
 
-async function createGameSession(lobbyData: Lobby) {
+function activePlayers(players: Player[]) {
+    return (players || []).filter((p) => !p.isSpectator);
+}
 
-    if (lobbyData?.currentGame) {
-        // Add the finished game to the games array if it exists
+async function createGameSession(lobbyData: Lobby) {
+    if (lobbyData?.currentGame && (lobbyData.currentGame.isGameOver || lobbyData.gameState === GAME_STATE.FINISHED)) {
         lobbyData.games = lobbyData?.games || [];
-        lobbyData.games.push(lobbyData?.currentGame);
+        lobbyData.games.push(lobbyData.currentGame);
         lobbyData.currentGame = null;
     }
 
-    const players = lobbyData?.players;
-    if (players.length > 0) {
-        const randomIndex = Math.floor(Math.random() * players.length);
-        const randomWord = await getRandomWord();
-
-        // Calculate the new round number
-        const previousRound = lobbyData.games && lobbyData.games.length > 0
-            ? lobbyData.games[lobbyData.games.length - 1].round
-            : 0;
-        const newRound = previousRound + 1;
-
-        const newGameSession = {
-            round: newRound,
-            spy: players[randomIndex].userId,
-            word: randomWord,
-            startTime: serverTimestamp(),
-            timerDuration: 180000,
-        };
-
-        const updatedLobbyData = {
-            ...lobbyData,
-            currentGame: newGameSession,
-            players: players.map((player, index) => ({
-                ...player,
-                role: index === randomIndex ? SPY.SPY : SPY.DEFENDER
-            }))
-        };
-        return updatedLobbyData;
-    } else {
-        throw new Error('No players in the lobby');
+    const players = activePlayers(lobbyData?.players || []);
+    if (players.length < constants.minPlayers) {
+        throw new Error(`Need at least ${constants.minPlayers} players to start`);
     }
+
+    const randomIndex = Math.floor(Math.random() * players.length);
+    const picked = await getRandomWord();
+    const spyId = players[randomIndex].userId;
+
+    const previousRound = lobbyData.games && lobbyData.games.length > 0
+        ? lobbyData.games[lobbyData.games.length - 1].round
+        : 0;
+
+    const newGameSession: GameSession = {
+        round: previousRound + 1,
+        spy: spyId,
+        defenders: players.filter((_, i) => i !== randomIndex).map((p) => p.userId),
+        word: picked.word,
+        category: picked.category,
+        startTime: null,
+        isGameOver: false,
+        votes: {},
+        votingComplete: false,
+        votingDuration: constants.votingDurationMs,
+        votingStarted: false,
+        scoresUpdated: false,
+        voteResults: null,
+        timerDuration: constants.discussDurationMs,
+        revealIndex: 0,
+        revealComplete: false,
+        votePassIndex: 0,
+    };
+
+    return {
+        ...lobbyData,
+        currentGame: newGameSession,
+        players: (lobbyData.players || []).map((player) => {
+            if (player.isSpectator) {
+                return { ...player, role: 'spectator' };
+            }
+            return {
+                ...player,
+                role: player.userId === spyId ? SPY.SPY : SPY.DEFENDER,
+            };
+        }),
+    };
+}
+
+export async function advanceReveal(lobbyCode: string) {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const lobbyDoc = await getDoc(lobbyRef);
+    if (!lobbyDoc.exists()) throw new Error('Lobby not found');
+
+    const lobby = lobbyDoc.data() as Lobby;
+    const game = lobby.currentGame;
+    if (!game) throw new Error('No game');
+
+    const seats = activePlayers(lobby.players || []);
+    const nextIndex = (game.revealIndex ?? 0) + 1;
+
+    if (nextIndex >= seats.length) {
+        await updateDoc(lobbyRef, {
+            gameState: GAME_STATE.GAME,
+            'currentGame.revealComplete': true,
+            'currentGame.revealIndex': nextIndex,
+            'currentGame.startTime': serverTimestamp(),
+        });
+    } else {
+        await updateDoc(lobbyRef, {
+            'currentGame.revealIndex': nextIndex,
+        });
+    }
+}
+
+export async function startDiscussPhase(lobbyCode: string) {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    await updateDoc(lobbyRef, {
+        gameState: GAME_STATE.GAME,
+        'currentGame.revealComplete': true,
+        'currentGame.startTime': serverTimestamp(),
+    });
 }
 
 export async function updateGameSession(lobbyCode: string, gameSessionUpdates: Partial<GameSession>) {
@@ -308,49 +466,73 @@ export async function updateGameSession(lobbyCode: string, gameSessionUpdates: P
         }
 
         const currentLobbyData = lobbyDoc.data() as Lobby;
-        let updatedLobbyData: Lobby = { ...currentLobbyData };
-
-        if (!updatedLobbyData.currentGame) {
+        if (!currentLobbyData.currentGame) {
             throw new Error('No active game session');
         }
 
-        // Update the current game session
-        updatedLobbyData.currentGame = {
-            ...updatedLobbyData.currentGame,
-            ...gameSessionUpdates
+        const updatedCurrent = {
+            ...currentLobbyData.currentGame,
+            ...gameSessionUpdates,
         };
 
-        // If the game is finished, move the current game to the games array and reset the current game
+        const patch: any = { currentGame: updatedCurrent };
         if (gameSessionUpdates.isGameOver) {
-            updatedLobbyData.gameState = GAME_STATE.FINISHED;
+            patch.gameState = GAME_STATE.FINISHED;
         }
 
-        // Update the lobby document in Firestore
-        await updateDoc(lobbyRef, updatedLobbyData as any);
-
-        // Update the local state
-        state.lobbyData = updatedLobbyData;
-
-        return { ok: true, data: updatedLobbyData };
+        await updateDoc(lobbyRef, patch);
+        state.lobbyData = { ...currentLobbyData, ...patch };
+        return { ok: true, data: state.lobbyData };
     } catch (error) {
         console.error("Error updating game session:", error);
         state.error = "Failed to update game session";
         return { ok: false, error: "Failed to update game session" };
     }
-};
+}
+
+/** Rematch: archive current game, deal new roles, enter reveal. */
+export async function rematch(lobbyCode: string) {
+    return updateLobby(lobbyCode, { gameState: GAME_STATE.REVEAL });
+}
+
+export async function backToLobby(lobbyCode: string) {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const lobbyDoc = await getDoc(lobbyRef);
+    if (!lobbyDoc.exists()) return { ok: false };
+
+    const lobby = lobbyDoc.data() as Lobby;
+    const games = [...(lobby.games || [])];
+    if (lobby.currentGame) {
+        games.push(lobby.currentGame);
+    }
+
+    const players = (lobby.players || []).map((p) => ({
+        ...p,
+        role: 'lobby_player',
+    }));
+
+    await updateDoc(lobbyRef, {
+        gameState: GAME_STATE.LOBBY,
+        currentGame: null,
+        games,
+        players,
+    });
+    return { ok: true };
+}
 
 /** ***************
  * Vote functions
  * *************** */
 
 export async function startVoting(lobbyCode: string) {
-    const votingDuration = 30000; // 30 seconds for voting
-
     await updateGameSession(lobbyCode, {
-        endTime: serverTimestamp(),
-        votingStartTime: serverTimestamp(),
-        votingDuration: votingDuration,
-        votingStarted: true
+        endTime: serverTimestamp() as any,
+        votingStartTime: serverTimestamp() as any,
+        votingDuration: constants.votingDurationMs,
+        votingStarted: true,
+        votePassIndex: 0,
+        votes: {},
+        votingComplete: false,
     });
 }
 
@@ -359,44 +541,46 @@ export async function getVotingResults(lobbyCode: string) {
     const lobbyDoc = await getDoc(lobbyRef);
     const lobbyData = lobbyDoc.data() as Lobby;
 
-    if (!lobbyData?.currentGame?.votingComplete) return null;
-    if (lobbyData.currentGame.scoresUpdated) return lobbyData.currentGame.voteResults; // Scores already updated
+    if (!lobbyData?.currentGame) return null;
+    if (lobbyData.currentGame.scoresUpdated) return lobbyData.currentGame.voteResults;
 
-    const votes: any = lobbyData.currentGame?.votes || {};
-    const voteCounts: any = Object.values(votes).reduce((acc: any, votedForId: any) => {
+    const votes: Record<string, string> = lobbyData.currentGame?.votes || {};
+    const voters = activePlayers(lobbyData.players || []);
+
+    // Allow results when time is up even if not everyone voted
+    if (!lobbyData.currentGame.votingComplete && Object.keys(votes).length < voters.length) {
+        // If host forced finish or timer expired, proceed with what we have
+        if (Object.keys(votes).length === 0) {
+            return null;
+        }
+    }
+
+    const voteCounts: Record<string, number> = Object.values(votes).reduce((acc: Record<string, number>, votedForId) => {
         acc[votedForId] = (acc[votedForId] || 0) + 1;
         return acc;
     }, {});
 
-    if (!voteCounts || Object.keys(voteCounts).length === 0) return;
-    const mostVotedId = Object.entries(voteCounts).reduce((a: any, b: any) => a[1] > b[1] ? a : b)[0];
+    if (!voteCounts || Object.keys(voteCounts).length === 0) return null;
 
+    const mostVotedId = Object.entries(voteCounts).reduce((a, b) => (a[1] > b[1] ? a : b))[0];
     const isSpy = mostVotedId === lobbyData.currentGame?.spy;
-    const voteResults = {
-        votes,
-        mostVotedId,
-        isSpy
-    };
+    const voteResults = { votes, mostVotedId, isSpy };
 
-    state.lobbyData.currentGame.voteResults = voteResults;
-
-    // Update scores based on the voting results
     await updateDoc(lobbyRef, {
         'currentGame.voteResults': voteResults,
+        'currentGame.votingComplete': true,
         'currentGame.isGameOver': true,
         'currentGame.scoresUpdated': true,
+        gameState: GAME_STATE.FINISHED,
     });
 
-    // Update scores
     if (isSpy) {
-        // Spy was caught, update scores for correct voters
         for (const [voterId, votedForId] of Object.entries(votes)) {
             if (votedForId === mostVotedId) {
                 await updatePlayerScore(lobbyCode, voterId, SPY.SPY_VOTE_POINTS);
             }
         }
     } else {
-        // Spy wins, update spy's score
         await updatePlayerScore(lobbyCode, lobbyData.currentGame.spy, SPY.SPY_WIN_POINTS);
     }
 
@@ -407,7 +591,7 @@ export async function castVote(lobbyCode: string, voterId: string, votedForId: s
     const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
 
     try {
-        await runTransaction(db, async (transaction: any) => {
+        await runTransaction(db, async (transaction) => {
             const lobbyDoc = await transaction.get(lobbyRef);
             if (!lobbyDoc.exists()) {
                 throw "Lobby does not exist!";
@@ -419,12 +603,15 @@ export async function castVote(lobbyCode: string, voterId: string, votedForId: s
                 throw "No active game session!";
             }
 
-            const updatedVotes = { ...currentGame.votes, [voterId]: votedForId };
-            const allPlayersVoted = Object.keys(updatedVotes).length === lobbyData.players.length;
+            const updatedVotes = { ...(currentGame.votes || {}), [voterId]: votedForId };
+            const voters = activePlayers(lobbyData.players || []);
+            const allPlayersVoted = Object.keys(updatedVotes).length >= voters.length;
+            const nextPass = (currentGame.votePassIndex ?? 0) + 1;
 
             transaction.update(lobbyRef, {
                 'currentGame.votes': updatedVotes,
-                'currentGame.votingComplete': allPlayersVoted
+                'currentGame.votingComplete': allPlayersVoted,
+                'currentGame.votePassIndex': nextPass,
             });
         });
     } catch (error) {
@@ -433,40 +620,47 @@ export async function castVote(lobbyCode: string, voterId: string, votedForId: s
     }
 }
 
+export async function advanceVotePass(lobbyCode: string) {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    const lobbyDoc = await getDoc(lobbyRef);
+    if (!lobbyDoc.exists()) return;
+    const lobby = lobbyDoc.data() as Lobby;
+    const idx = (lobby.currentGame?.votePassIndex ?? 0) + 1;
+    await updateDoc(lobbyRef, { 'currentGame.votePassIndex': idx });
+}
+
 /** ***************
  * Words functions
  * *************** */
 
 export async function getRandomWord() {
     try {
-        const wordsRef = collection(db, 'words');
+        const wordsRef = collection(db, SPY_TABLES.WORDS);
         const wordsSnapshot = await getDocs(wordsRef);
 
-        if (wordsSnapshot.empty) {
-            throw new Error('No words found in the database');
+        if (!wordsSnapshot.empty) {
+            const randomDocIndex = Math.floor(Math.random() * wordsSnapshot.size);
+            const randomDoc = wordsSnapshot.docs[randomDocIndex];
+            const wordsArray = randomDoc.data().words;
+            const category =
+                (typeof randomDoc.data().category === "string" && randomDoc.data().category) ||
+                randomDoc.id;
+
+            if (Array.isArray(wordsArray) && wordsArray.length > 0) {
+                return {
+                    word: wordsArray[Math.floor(Math.random() * wordsArray.length)],
+                    category,
+                };
+            }
         }
-
-        // Get a random document (category)
-        const randomDocIndex = Math.floor(Math.random() * wordsSnapshot.size);
-        const randomDoc = wordsSnapshot.docs[randomDocIndex];
-
-        const wordsArray = randomDoc.data().words;
-
-        if (!Array.isArray(wordsArray) || wordsArray.length === 0) {
-            throw new Error('Invalid words array in the selected document');
-        }
-
-        // Get a random word from the selected document
-        const randomWordIndex = Math.floor(Math.random() * wordsArray.length);
-        return wordsArray[randomWordIndex];
     } catch (error) {
-        console.error("Error getting random word:", error);
-        return '';
+        console.error("Error getting random word from Firestore:", error);
     }
+    return pickFallbackWord();
 }
 
 export async function addWordsToFirestore(wordsData: any) {
-    const wordsCollection = collection(db, 'words');
+    const wordsCollection = collection(db, SPY_TABLES.WORDS);
 
     for (const [category, words] of Object.entries(wordsData)) {
         try {

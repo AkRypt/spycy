@@ -1,17 +1,21 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useSnapshot } from 'valtio';
 import state from '../app/context';
-import { GAME_STATE } from '@/app/constants';
+import { PLAY_MODE } from '@/app/constants';
 
 export default function useLobby() {
     const snap = useSnapshot(state);
 
     const lobbyCode = useMemo(() => snap.lobbyData?.lobbyCode, [snap.lobbyData?.lobbyCode]);
     const gameState = useMemo(() => snap.lobbyData?.gameState, [snap.lobbyData?.gameState]);
-    const players = useMemo(() => snap.lobbyData?.players, [snap.lobbyData?.players]);
+    const players = useMemo(() => snap.lobbyData?.players || [], [snap.lobbyData?.players]);
     const currentGame = useMemo(() => snap.lobbyData?.currentGame, [snap.lobbyData?.currentGame]);
     const games = useMemo(() => snap.lobbyData?.games, [snap.lobbyData?.games]);
-
+    const playMode = useMemo(
+        () => snap.lobbyData?.playMode || PLAY_MODE.ONLINE,
+        [snap.lobbyData?.playMode]
+    );
+    const hostId = useMemo(() => snap.lobbyData?.hostId, [snap.lobbyData?.hostId]);
     const lobbyFetched = useMemo(() => snap.lobbyData?.lobbyFetched, [snap.lobbyData?.lobbyFetched]);
 
     return {
@@ -21,5 +25,7 @@ export default function useLobby() {
         lobbyFetched,
         currentGame,
         games,
+        playMode,
+        hostId,
     };
 }

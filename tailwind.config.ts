@@ -44,7 +44,7 @@ const config: Config = {
             transform: "translate(-20px, 20px) scale(0.9)",
           },
           "100%": {
-            transform: "tranlate(0px, 0px) scale(1)",
+            transform: "translate(0px, 0px) scale(1)",
           },
         },
       },
