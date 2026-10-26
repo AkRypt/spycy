@@ -1,95 +1,141 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { generateLobbyCode } from '../../utils';
-import { addWordsToFirestore, createLobby, getRandomWord } from '@/utils/firebase/firebaseHelpers';
-import { constants } from '../constants';
+import { createLobby } from '@/utils/firebase/firebaseHelpers';
+import { createLocalHotseat } from '@/utils/localLobby';
+import { constants, PLAY_MODE, PlayMode } from '../constants';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks';
 import { Background, PrimaryButton, TextInput } from '../components';
+import { rockSalt } from '../fonts';
 
 export default function MainMenu() {
     const router = useRouter();
     const [lobbyCode, setLobbyCode] = useState('');
-    const { userFetched, playerLobbyCode } = useUser();
-    const [randomWord, setRandomWord] = useState<any>('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const { userFetched, playerLobbyCode, userId, playerName } = useUser();
 
     useEffect(() => {
         if (userFetched && playerLobbyCode) {
             router.push(`/lobby/${playerLobbyCode}`);
         }
-    }, [userFetched, playerLobbyCode]);
+    }, [userFetched, playerLobbyCode, router]);
 
-    const createGame = () => {
-        const newLobbyCode = generateLobbyCode();
-        createLobby(newLobbyCode)
-            .then(() => {
+    const createOnline = async () => {
+        if (!userId || busy) return;
+        setBusy(true);
+        setError('');
+        try {
+            const newLobbyCode = generateLobbyCode();
+            const result = await createLobby(newLobbyCode, userId, PLAY_MODE.ONLINE);
+            if (result.ok) {
                 router.push(`/lobby/${newLobbyCode}`);
-            })
-            .catch((error) => {
-                console.error('Error creating lobby:', error);
-            });
+            } else {
+                setError('Could not create online lobby. Check Firebase Auth (Anonymous) and env keys.');
+            }
+        } catch (e) {
+            console.error(e);
+            setError('Online lobby needs a valid Firebase project.');
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const createPassPlay = () => {
+        if (busy) return;
+        setBusy(true);
+        setError('');
+        try {
+            const name =
+                playerName ||
+                (typeof window !== 'undefined' ? localStorage.getItem('playerName') : null) ||
+                'Host';
+            const lobby = createLocalHotseat(name);
+            router.push(`/lobby/${lobby.lobbyCode}`);
+        } catch (e) {
+            console.error(e);
+            setError('Could not start pass & play.');
+        } finally {
+            setBusy(false);
+        }
     };
 
     const joinGame = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        router.push(`/lobby/${lobbyCode}`);
-    };
-
-    const getRando = () => {
-        setRandomWord(getRandomWord());
+        const code = lobbyCode.trim().toUpperCase();
+        if (code.length !== constants.lobbyCodeLength) return;
+        router.push(`/lobby/${code}`);
     };
 
     return (
         <Background>
-
-
-            <div className="flex flex-col items-center justify-center items-center rounded-xl z-10 mt-[30%] p-6 w-[100%] max-w-md">
-
-                {/* Logo */}
-                <div className="mb-6 relative">
-                    <h1 className="text-6xl font-bold text-center bg-gradient-to-r from-pink-500 to-red-500 text-transparent bg-clip-text relative z-10">
+            <div className="flex flex-1 flex-col items-center justify-center animate-riseIn py-8">
+                <div className="mb-8 relative text-center">
+                    <h1 className={`text-6xl sm:text-7xl font-bold relative z-10 spycy-logo ${rockSalt.className}`}>
                         spYcy
                     </h1>
-                    <h1 className="text-6xl font-bold text-center text-red-600 absolute top-0 left-0 right-0 blur-md opacity-100 animate-pulse">
+                    <h1
+                        aria-hidden
+                        className={`text-6xl sm:text-7xl font-bold absolute inset-0 spycy-logo-glow animate-pulse ${rockSalt.className}`}
+                    >
                         spYcy
                     </h1>
+                    <p className="mt-4 text-[var(--spycy-muted)] text-sm sm:text-base tracking-wide">
+                        One spy. One word. Don&apos;t get caught.
+                    </p>
                 </div>
 
-                {/* Join Game Input and Button */}
-                <p className="text-xl text-white w-full px-1 text-center mb-2">Have a code?</p>
-                <form className="flex flex-col w-full gap-2"
-                    onSubmit={joinGame}>
-                    <TextInput
-                        name="lobbyCode"
-                        value={lobbyCode}
-                        onChange={(e: any) => setLobbyCode(e.target.value.toLowerCase())}
-                        placeholder="Enter game code"
-                        className="text-center"
-                    />
-                    <PrimaryButton
-                        type="submit"
-                        text="Join Game"
-                        disabled={lobbyCode.length !== constants.lobbyCodeLength}
-                        className="w-full"
-                    />
-                </form>
+                <div className="w-full spycy-panel rounded-2xl p-5 sm:p-6">
+                    <p className="text-sm uppercase tracking-[0.2em] text-[var(--spycy-muted)] mb-3 text-center">
+                        Have a code?
+                    </p>
+                    <form className="flex flex-col w-full gap-3" onSubmit={joinGame}>
+                        <TextInput
+                            name="lobbyCode"
+                            value={lobbyCode}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                                setLobbyCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, constants.lobbyCodeLength))
+                            }
+                            placeholder="Enter code"
+                            className="text-center tracking-[0.35em] uppercase"
+                            maxLength={constants.lobbyCodeLength}
+                            inputMode="text"
+                        />
+                        <PrimaryButton
+                            type="submit"
+                            text="Join game"
+                            disabled={lobbyCode.length !== constants.lobbyCodeLength}
+                            className="w-full"
+                        />
+                    </form>
 
-                <div className="flex items-center w-full my-4">
-                    <div className="flex-grow h-0.5 bg-gray-700"></div>
-                    <span className="flex-shrink text-md mx-4 text-gray-500">or</span>
-                    <div className="flex-grow h-0.5 bg-gray-700"></div>
+                    <div className="flex items-center w-full my-5">
+                        <div className="flex-grow h-px bg-white/10" />
+                        <span className="mx-3 text-xs uppercase tracking-widest text-[var(--spycy-muted)]">or host</span>
+                        <div className="flex-grow h-px bg-white/10" />
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                        <PrimaryButton
+                            onClick={createPassPlay}
+                            text={busy ? "Starting…" : "Pass & play"}
+                            className="w-full"
+                            disabled={busy}
+                        />
+                        <PrimaryButton
+                            onClick={createOnline}
+                            text={busy ? "Creating…" : "Online lobby"}
+                            variant="secondary"
+                            className="w-full"
+                            disabled={busy || !userId}
+                        />
+                        <p className="text-center text-xs text-[var(--spycy-muted)]">
+                            Pass &amp; play works on one phone offline. Online needs Firebase Anonymous Auth.
+                        </p>
+                        {error && <p className="text-center text-sm text-rose-400">{error}</p>}
+                    </div>
                 </div>
-
-                {/* Create Game Button */}
-                <p className="text-xl text-white w-full text-center px-1 mb-2">Are you the host?</p>
-                <div className="w-full">
-                    <PrimaryButton
-                        onClick={createGame}
-                        text="Create Game"
-                        className="w-full"
-                    />
-                </div>
-
             </div>
         </Background>
     );

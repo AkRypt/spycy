@@ -1,17 +1,29 @@
 "use client";
 
-export default function TextInput({ ...props }) {
-    const { className, ...rest } = props;
+import { forwardRef } from "react";
+
+const TextInput = forwardRef<HTMLInputElement, any>(function TextInput(props, ref) {
+    const { className = "", ...rest } = props;
 
     return (
         <input
-            className={`border border-gray-300 bg-gray-800 text-2xl text-white rounded-md p-2 z-10 ${props.className}`}
-            type="text"
+            ref={ref}
+            className={`
+                w-full touch-target rounded-xl border border-white/15
+                bg-[var(--spycy-panel)] px-4 py-3 text-xl text-white
+                placeholder:text-[var(--spycy-muted)]
+                focus:outline-none focus:ring-2 focus:ring-rose-500/50
+                ${className}
+            `}
+            type={props.type || "text"}
             name={props.name}
             placeholder={props.placeholder}
             onChange={props.onChange}
             value={props.value}
+            autoComplete="off"
             {...rest}
         />
     );
-};
+});
+
+export default TextInput;

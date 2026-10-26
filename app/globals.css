@@ -3,23 +3,25 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 255, 255, 255;
-  --background-end-rgb: 255, 255, 255;
+  --spycy-ink: #0b1020;
+  --spycy-panel: #121a2e;
+  --spycy-panel-2: #1a2438;
+  --spycy-border: rgba(255, 255, 255, 0.12);
+  --spycy-text: #f4f1f5;
+  --spycy-muted: #9aa3b8;
+  --spycy-spy: #ff3b6b;
+  --spycy-spy-glow: rgba(255, 59, 107, 0.35);
+  --spycy-defender: #2ec4b6;
+  --spycy-defender-glow: rgba(46, 196, 182, 0.3);
+  --spycy-accent: #ff6b8a;
+  --foreground-rgb: 244, 241, 245;
 }
 
-/* @media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
-} */
-
 body {
-  color: rgb(var(--foreground-rgb));
-  background: white;
-  /* background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb))); */
+  color: var(--spycy-text);
+  background: var(--spycy-ink);
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @layer utilities {
@@ -34,11 +36,61 @@ body {
   }
 }
 
-/* Custom Changes */
 .btn-primary {
-  @apply text-white bg-gradient-to-br from-cyan-600 to-blue-500 hover:from-blue-600 hover:to-blue-500;
+  @apply text-white bg-gradient-to-br from-rose-600 to-pink-500 hover:from-rose-500 hover:to-pink-400;
 }
 
 .btn-error {
   @apply text-white bg-gradient-to-br from-red-600 to-red-400 hover:from-red-700 hover:to-red-500;
+}
+
+.spycy-panel {
+  background: color-mix(in srgb, var(--spycy-panel) 88%, transparent);
+  border: 1px solid var(--spycy-border);
+  backdrop-filter: blur(10px);
+}
+
+.spycy-logo {
+  background: linear-gradient(110deg, #ff6b8a 0%, #ff3b6b 45%, #ff8a5c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.spycy-logo-glow {
+  color: #ff3b6b;
+  filter: blur(12px);
+  opacity: 0.55;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes riseIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.35s ease-out both;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.35s ease-out both;
+}
+
+.animate-riseIn {
+  animation: riseIn 0.45s ease-out both;
+}
+
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
 }
