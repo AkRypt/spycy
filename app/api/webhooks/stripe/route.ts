@@ -1,5 +1,6 @@
 import Stripe from 'stripe'
 import { NextRequest, NextResponse } from 'next/server'
+import { SPY_TABLES } from '@/app/constants'
 import { getAdminDb } from '@/utils/firebase/admin'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
 
         const db = getAdminDb()
         const query = await db
-          .collection('users')
+          .collection(SPY_TABLES.USERS)
           .where('email', '==', custEmail)
           .limit(1)
           .get()

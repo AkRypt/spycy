@@ -33,8 +33,9 @@ export const PLAY_MODE = {
 
 export type PlayMode = (typeof PLAY_MODE)[keyof typeof PLAY_MODE]
 
+/** Namespaced for shared Firebase project (akxh-games). */
 export const SPY_TABLES = {
-    USERS: "users",
-    LOBBIES: "lobbies",
-    WORDS: "words",
+    USERS: "spycy_users",
+    LOBBIES: "spycy_lobbies",
+    WORDS: "spycy_words",
 }
