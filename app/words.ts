@@ -35,12 +35,24 @@ export function formatCategoryLabel(category: string): string {
         .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function pickFallbackWord(): WordPick {
-    const keys = Object.keys(FALLBACK_WORDS);
+/** `enabled` limits the deal. Omit it to use every pack that has words. */
+export function pickFromPacks(
+    packs: Record<string, string[]>,
+    enabled?: string[]
+): WordPick | null {
+    let keys = Object.keys(packs).filter(
+        (key) => Array.isArray(packs[key]) && packs[key].length > 0
+    );
+    if (enabled) keys = keys.filter((key) => enabled.includes(key));
+    if (!keys.length) return null;
     const category = keys[Math.floor(Math.random() * keys.length)];
-    const words = FALLBACK_WORDS[category];
+    const words = packs[category];
     return {
         word: words[Math.floor(Math.random() * words.length)],
         category,
     };
+}
+
+export function pickFallbackWord(enabled?: string[]): WordPick | null {
+    return pickFromPacks(FALLBACK_WORDS, enabled);
 }

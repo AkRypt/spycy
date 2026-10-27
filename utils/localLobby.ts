@@ -1,7 +1,7 @@
 import state from "@/app/context";
 import { constants, GAME_STATE, PLAY_MODE, SPY } from "@/app/constants";
 import { GameSession, Lobby, Player } from "@/app/interfaces";
-import { pickFallbackWord } from "@/app/words";
+import { FALLBACK_WORDS, pickFromPacks } from "@/app/words";
 import { generateLobbyCode, makeLocalPlayerId } from ".";
 
 const STORAGE_KEY = "spycy_hotseat_lobby";
@@ -119,6 +119,19 @@ export function localAddPlayer(name: string) {
     return { ok: true };
 }
 
+export function localSetCategories(enabledCategories: string[]) {
+    const lobby = getLobby();
+    lobby.enabledCategories = enabledCategories;
+    persist(lobby);
+    return { ok: true };
+}
+
+export function localSetWordPacks(wordPacks: Record<string, string[]>) {
+    const lobby = getLobby();
+    lobby.wordPacks = wordPacks;
+    persist(lobby);
+}
+
 export function localRemovePlayer(userId: string) {
     const lobby = getLobby();
     lobby.players = (lobby.players || []).filter((p) => p.userId !== userId);
@@ -142,7 +155,14 @@ export function localStartReveal() {
     const previousRound =
         lobby.games && lobby.games.length > 0 ? lobby.games[lobby.games.length - 1].round : 0;
 
-    const picked = pickFallbackWord();
+    const source =
+        lobby.wordPacks && Object.keys(lobby.wordPacks).length > 0
+            ? lobby.wordPacks
+            : FALLBACK_WORDS;
+    const picked = pickFromPacks(source, lobby.enabledCategories);
+    if (!picked) {
+        return { ok: false, error: "Turn on at least one category" };
+    }
     const session: GameSession = {
         round: previousRound + 1,
         spy: spyId,

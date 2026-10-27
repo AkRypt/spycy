@@ -16,6 +16,10 @@ export default function useLobby() {
         [snap.lobbyData?.playMode]
     );
     const hostId = useMemo(() => snap.lobbyData?.hostId, [snap.lobbyData?.hostId]);
+    const enabledCategories = useMemo(
+        () => snap.lobbyData?.enabledCategories,
+        [snap.lobbyData?.enabledCategories]
+    );
     const lobbyFetched = useMemo(() => snap.lobbyData?.lobbyFetched, [snap.lobbyData?.lobbyFetched]);
 
     return {
@@ -27,5 +31,6 @@ export default function useLobby() {
         games,
         playMode,
         hostId,
+        enabledCategories,
     };
 }
