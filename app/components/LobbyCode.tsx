@@ -6,28 +6,16 @@ import { unjoinLobby } from "@/utils/firebase/firebaseHelpers";
 import { useRouter } from "next/navigation";
 import SuccessToast from "./successToast";
 import { PLAY_MODE } from "@/app/constants";
-import state from "@/app/context";
 import useLobby from "@/hooks/useLobby";
 import { isLocalHotseatCode, localLeave } from "@/utils/localLobby";
+import {
+    clearLobbyClientState,
+    markLeftLobby,
+    SPYCY_SUPPRESS_REJOIN_KEY,
+} from "@/utils/lobbyLeave";
 
-/** Session flag so home does not bounce the user straight back into a lobby they just left. */
-export const SPYCY_JUST_LEFT_KEY = "spycy_just_left";
-
-function clearLobbyClientState() {
-    state.userData = { ...state.userData, playerLobbyCode: "" };
-    state.lobbyData = {
-        lobbyCode: "",
-        gameState: "",
-        players: [],
-        lobbyFetched: false,
-        currentGame: null,
-        playMode: undefined,
-        hostId: undefined,
-    };
-    if (typeof window !== "undefined") {
-        sessionStorage.setItem(SPYCY_JUST_LEFT_KEY, "1");
-    }
-}
+/** Re-export so older imports keep working. */
+export { SPYCY_SUPPRESS_REJOIN_KEY as SPYCY_JUST_LEFT_KEY };
 
 export default function LobbyCode({ ...props }) {
     const router = useRouter();
@@ -40,13 +28,20 @@ export default function LobbyCode({ ...props }) {
     const leaveLobby = async () => {
         const codeToLeave = (playerLobbyCode || code || "").toUpperCase();
 
-        // Clear first so MainMenu's auto-rejoin cannot race us back into the lobby.
+        // Mark leave BEFORE clearing membership so the lobby page join effect
+        // cannot race and call joinLobby again (that was restoring Firestore
+        // playerLobbyCode and causing reload → old lobby).
+        markLeftLobby();
         clearLobbyClientState();
+
         if (local || playMode === PLAY_MODE.HOTSEAT) {
             localLeave();
             clearLobbyClientState();
         } else if (codeToLeave && userId) {
             await unjoinLobby(codeToLeave, userId);
+            clearLobbyClientState();
+        } else if (codeToLeave) {
+            // No auth uid yet — still wipe client; membership clear is best-effort.
             clearLobbyClientState();
         }
 

@@ -284,6 +284,9 @@ export function localLeave() {
         gameState: "",
         players: [],
         lobbyFetched: false,
+        currentGame: null,
+        playMode: undefined,
+        hostId: undefined,
     };
     state.userData = { ...state.userData, playerLobbyCode: "" };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, Suspense, useState } from "react";
 import { joinLobby, subscribeLobby, unjoinLobby } from "@/utils/firebase/firebaseHelpers";
 import { GAME_STATE, PLAY_MODE } from "@/app/constants";
@@ -12,9 +12,11 @@ import Game from "./game";
 import Results from "./results";
 import { Background } from "@/app/components";
 import { hydrateLocalIfMatch, isLocalHotseatCode } from "@/utils/localLobby";
+import { shouldSuppressRejoin } from "@/utils/lobbyLeave";
 
 export default function Lobby() {
     const { lobbyCode } = useParams();
+    const router = useRouter();
     const code = String(lobbyCode || "").toUpperCase();
     const { userId, userFetched, playerName, playerLobbyCode } = useUser();
     const { gameState, playMode } = useLobby();
@@ -37,6 +39,15 @@ export default function Lobby() {
         if (!userFetched || !playerName) return;
         if (playerLobbyCode === code) return;
 
+        // Leave clears playerLobbyCode while this page is still mounted; without
+        // this guard the effect re-runs and joinLobby restores Firestore membership.
+        if (shouldSuppressRejoin()) {
+            if (!playerLobbyCode) {
+                router.replace("/");
+            }
+            return;
+        }
+
         let cancelled = false;
         (async () => {
             if (playerLobbyCode && playerLobbyCode !== code) {
@@ -52,7 +63,7 @@ export default function Lobby() {
         return () => {
             cancelled = true;
         };
-    }, [userFetched, playerName, code, userId, localMode, playerLobbyCode]);
+    }, [userFetched, playerName, code, userId, localMode, playerLobbyCode, router]);
 
     const effectiveLocal = localMode || playMode === PLAY_MODE.HOTSEAT;
 
