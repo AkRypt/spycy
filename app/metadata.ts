@@ -18,7 +18,17 @@ export const metadata: Metadata = {
   openGraph: {
     siteName: title,
     type: "website",
-    locale: "en_US"
+    locale: "en_US",
+    title: title,
+    description: description,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: title,
+      },
+    ],
   },
   robots: {
     index: true,
@@ -48,44 +58,97 @@ export const metadata: Metadata = {
     site: "@AkshitDayal8",
     images: [
       {
-        url: `${constants.siteUrl}/favicon.ico`,
+        url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: title
-      }
-    ]
+        alt: title,
+      },
+    ],
   },
   icons: {
     icon: [
       {
         url: "/favicon.ico",
-        type: "image/x-icon"
+        type: "image/x-icon",
       },
       {
         url: "/favicon-16x16.png",
         sizes: "16x16",
-        type: "image/png"
-      }
-      // add favicon-32x32.png, favicon-96x96.png, android-chrome-192x192.png
+        type: "image/png",
+      },
+      {
+        url: "/favicon-32x32.png",
+        sizes: "32x32",
+        type: "image/png",
+      },
+      {
+        url: "/favicon-96x96.png",
+        sizes: "96x96",
+        type: "image/png",
+      },
+      {
+        url: "/android-chrome-192x192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: "/spycy-icon.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
     ],
     shortcut: [
       {
         url: "/favicon.ico",
-        type: "image/x-icon"
-      }
+        type: "image/x-icon",
+      },
     ],
     apple: [
       {
         url: "/apple-icon-57x57.png",
         sizes: "57x57",
-        type: "image/png"
+        type: "image/png",
       },
       {
         url: "/apple-icon-60x60.png",
         sizes: "60x60",
-        type: "image/png"
-      }
-      // add apple-icon-72x72.png, apple-icon-76x76.png, apple-icon-114x114.png, apple-icon-120x120.png, apple-icon-144x144.png, apple-icon-152x152.png, apple-icon-180x180.png
-    ]
-  }
+        type: "image/png",
+      },
+      {
+        url: "/apple-icon-72x72.png",
+        sizes: "72x72",
+        type: "image/png",
+      },
+      {
+        url: "/apple-icon-76x76.png",
+        sizes: "76x76",
+        type: "image/png",
+      },
+      {
+        url: "/apple-icon-114x114.png",
+        sizes: "114x114",
+        type: "image/png",
+      },
+      {
+        url: "/apple-icon-120x120.png",
+        sizes: "120x120",
+        type: "image/png",
+      },
+      {
+        url: "/apple-icon-144x144.png",
+        sizes: "144x144",
+        type: "image/png",
+      },
+      {
+        url: "/apple-icon-152x152.png",
+        sizes: "152x152",
+        type: "image/png",
+      },
+      {
+        url: "/apple-icon-180x180.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
 };

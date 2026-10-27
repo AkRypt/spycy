@@ -11,7 +11,7 @@ export const jsonLd = {
     headline: "spYcy — find the spy",
     description:
         "A party word game: one spy doesn't know the secret word. Bluff, question, and vote them out.",
-    image: `${constants.siteUrl}/favicon.ico`,
+    image: `${constants.siteUrl}/og-image.png`,
     inLanguage: "en-US"
 };
 
