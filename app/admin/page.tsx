@@ -6,8 +6,26 @@ import { formatCategoryLabel } from "@/app/words";
 
 type Packs = Record<string, string[]>;
 
+async function fetchJson(url: string, init?: RequestInit, timeoutMs = 12000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: ctrl.signal });
+    let data: any = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
+    return { res, data };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
+  const [configured, setConfigured] = useState(true);
   const [checking, setChecking] = useState(true);
   const [password, setPassword] = useState("");
   const [packs, setPacks] = useState<Packs>({});
@@ -21,31 +39,65 @@ export default function AdminPage() {
   const categories = useMemo(() => Object.keys(packs).sort(), [packs]);
 
   const loadPacks = useCallback(async () => {
-    const res = await fetch("/api/admin/words");
+    const { res, data } = await fetchJson("/api/admin/words");
     if (res.status === 401) {
       setAuthed(false);
-      setChecking(false);
-      return;
+      return false;
     }
-    const data = await res.json();
-    if (!data.ok) {
-      setError(data.error || "Failed to load packs");
-      setChecking(false);
-      return;
+    if (!res.ok || !data?.ok) {
+      setError(data?.error || `Failed to load packs (${res.status})`);
+      setAuthed(false);
+      return false;
     }
-    setPacks(data.packs || {});
+    const next: Packs = data.packs || {};
+    setPacks(next);
     setAuthed(true);
-    setChecking(false);
-    const keys = Object.keys(data.packs || {}).sort();
-    if (keys.length && !selected) {
-      setSelected(keys[0]);
-      setDraftWords((data.packs[keys[0]] || []).join("\n"));
-    }
-  }, [selected]);
+    const keys = Object.keys(next).sort();
+    setSelected((prev) => {
+      if (prev && next[prev]) return prev;
+      return keys[0] || "";
+    });
+    return true;
+  }, []);
 
   useEffect(() => {
-    loadPacks();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      setError("");
+      try {
+        const { data } = await fetchJson("/api/admin/session", undefined, 8000);
+        if (cancelled) return;
+        setConfigured(data?.configured !== false);
+        if (data?.authenticated) {
+          try {
+            await loadPacks();
+          } catch (e: any) {
+            if (!cancelled) {
+              setAuthed(false);
+              setError(e?.name === "AbortError" ? "Timed out loading packs from Firestore." : (e?.message || "Failed to load packs"));
+            }
+          }
+        } else {
+          setAuthed(false);
+        }
+      } catch (e: any) {
+        if (!cancelled) {
+          setAuthed(false);
+          setConfigured(true);
+          setError(
+            e?.name === "AbortError"
+              ? "Timed out reaching admin API. Is the dev server running?"
+              : (e?.message || "Could not reach admin API")
+          );
+        }
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadPacks]);
 
   useEffect(() => {
     if (!selected) {
@@ -60,25 +112,27 @@ export default function AdminPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/login", {
+      const { res, data } = await fetchJson("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
       });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error || "Login failed");
+      if (!data?.ok) {
+        setError(data?.error || (res.status === 401 ? "Invalid password" : "Login failed"));
         return;
       }
       setPassword("");
+      setConfigured(true);
       await loadPacks();
+    } catch (err: any) {
+      setError(err?.name === "AbortError" ? "Login timed out" : (err?.message || "Login failed"));
     } finally {
       setBusy(false);
     }
   };
 
   const logout = async () => {
-    await fetch("/api/admin/logout", { method: "POST" });
+    await fetchJson("/api/admin/logout", { method: "POST" }).catch(() => null);
     setAuthed(false);
     setPacks({});
     setSelected("");
@@ -94,18 +148,19 @@ export default function AdminPage() {
         .split(/\r?\n/)
         .map((w) => w.trim())
         .filter(Boolean);
-      const res = await fetch("/api/admin/words", {
+      const { data } = await fetchJson("/api/admin/words", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category: selected, words }),
       });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error || "Save failed");
+      if (!data?.ok) {
+        setError(data?.error || "Save failed");
         return;
       }
       setPacks((prev) => ({ ...prev, [selected]: words }));
       setStatus(`Saved ${selected} (${words.length} words)`);
+    } catch (err: any) {
+      setError(err?.message || "Save failed");
     } finally {
       setBusy(false);
     }
@@ -118,20 +173,21 @@ export default function AdminPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/words", {
+      const { data } = await fetchJson("/api/admin/words", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category: cat, words: [] }),
       });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error || "Could not add category");
+      if (!data?.ok) {
+        setError(data?.error || "Could not add category");
         return;
       }
       setPacks((prev) => ({ ...prev, [cat]: [] }));
       setSelected(cat);
       setNewCategory("");
       setStatus(`Created ${cat}`);
+    } catch (err: any) {
+      setError(err?.message || "Could not add category");
     } finally {
       setBusy(false);
     }
@@ -143,12 +199,12 @@ export default function AdminPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch(`/api/admin/words?category=${encodeURIComponent(selected)}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error || "Delete failed");
+      const { data } = await fetchJson(
+        `/api/admin/words?category=${encodeURIComponent(selected)}`,
+        { method: "DELETE" }
+      );
+      if (!data?.ok) {
+        setError(data?.error || "Delete failed");
         return;
       }
       const next = { ...packs };
@@ -157,6 +213,8 @@ export default function AdminPage() {
       const keys = Object.keys(next).sort();
       setSelected(keys[0] || "");
       setStatus(`Deleted ${selected}`);
+    } catch (err: any) {
+      setError(err?.message || "Delete failed");
     } finally {
       setBusy(false);
     }
@@ -166,18 +224,19 @@ export default function AdminPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await fetch("/api/admin/words", {
+      const { data } = await fetchJson("/api/admin/words", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ replace: false }),
       });
-      const data = await res.json();
-      if (!data.ok) {
-        setError(data.error || "Seed failed");
+      if (!data?.ok) {
+        setError(data?.error || "Seed failed");
         return;
       }
       setStatus(`Seeded: ${(data.seeded || []).join(", ")}`);
       await loadPacks();
+    } catch (err: any) {
+      setError(err?.message || "Seed failed");
     } finally {
       setBusy(false);
     }
@@ -198,6 +257,12 @@ export default function AdminPage() {
           <div className="spycy-panel w-full max-w-sm rounded-2xl p-6">
             <p className="text-xs uppercase tracking-[0.2em] text-rose-400 mb-2">Spycy admin</p>
             <h1 className="text-2xl font-bold mb-4">Word packs</h1>
+            {!configured && (
+              <p className="text-amber-300 text-sm mb-3">
+                <code className="text-white/90">ADMIN_PASSWORD</code> is not set on the server.
+                Add it to <code className="text-white/90">.env.local</code> (and Vercel), then restart.
+              </p>
+            )}
             <form onSubmit={login} className="flex flex-col gap-3">
               <TextInput
                 type="password"
@@ -205,12 +270,18 @@ export default function AdminPage() {
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
                 placeholder="Admin password"
                 autoComplete="current-password"
+                disabled={!configured}
               />
-              <PrimaryButton type="submit" text={busy ? "…" : "Enter"} disabled={busy || !password} className="w-full" />
+              <PrimaryButton
+                type="submit"
+                text={busy ? "…" : "Enter"}
+                disabled={busy || !password || !configured}
+                className="w-full"
+              />
             </form>
             {error && <p className="text-rose-400 text-sm mt-3">{error}</p>}
             <p className="text-xs text-[var(--spycy-muted)] mt-4">
-              Set <code className="text-white/80">ADMIN_PASSWORD</code> in server env (.env.local / Vercel).
+              Server-only env — never use <code className="text-white/80">NEXT_PUBLIC_</code>.
             </p>
           </div>
         </div>
@@ -221,7 +292,7 @@ export default function AdminPage() {
   return (
     <Background>
       <div className="flex flex-1 flex-col gap-4 py-4 animate-riseIn">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-rose-400">Admin</p>
             <h1 className="text-2xl font-bold">Word packs</h1>
