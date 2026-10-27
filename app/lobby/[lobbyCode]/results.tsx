@@ -6,22 +6,79 @@ import { GAME_STATE, PLAY_MODE, SPY } from "@/app/constants";
 import state from "@/app/context";
 import { getPlayerName } from "@/app/helpers";
 import { Player } from "@/app/interfaces";
+import { useUser } from "@/hooks";
 import useLobby from "@/hooks/useLobby";
+import { modeFromPlayMode, trackGameFinished, trackRoundStart } from "@/utils/analytics";
 import { backToLobby, rematch } from "@/utils/firebase/firebaseHelpers";
 import { isLocalHotseatCode, localBackToLobby, localRematch } from "@/utils/localLobby";
 import { formatCategoryLabel } from "@/app/words";
 
+function startMillis(value: unknown): number | null {
+    if (!value) return null;
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "object" && value && "toMillis" in value) {
+        const millis = (value as { toMillis?: () => number }).toMillis;
+        if (typeof millis === "function") return millis.call(value);
+    }
+    if (typeof value === "object" && value && "seconds" in value) {
+        const seconds = Number((value as { seconds: number }).seconds);
+        if (Number.isFinite(seconds)) return seconds * 1000;
+    }
+    return null;
+}
+
 export default function Results() {
-    const { lobbyCode, gameState, currentGame, players, playMode } = useLobby();
+    const { lobbyCode, gameState, currentGame, players, playMode, hostId } = useLobby();
+    const { userId } = useUser();
     const results = currentGame?.voteResults;
     const spyName = getPlayerName(currentGame?.spy, players as Player[]);
     const local = playMode === PLAY_MODE.HOTSEAT && isLocalHotseatCode(String(lobbyCode || ""));
+    const isHost = local || hostId === userId;
+    const mode = modeFromPlayMode(local ? PLAY_MODE.HOTSEAT : playMode);
 
     useEffect(() => {
         if (gameState === GAME_STATE.FINISHED) {
             state.showVotingModal = false;
         }
     }, [gameState]);
+
+    useEffect(() => {
+        if (gameState !== GAME_STATE.FINISHED || !currentGame || !isHost) return;
+        const start = startMillis(currentGame.startTime);
+        const durationS = start ? Math.max(0, Math.round((Date.now() - start) / 1000)) : undefined;
+        trackGameFinished({
+            mode,
+            deckId: currentGame.category || "unknown",
+            round: currentGame.round ?? 1,
+            lobbyCode: String(lobbyCode || ""),
+            durationS,
+        });
+    }, [gameState, currentGame, isHost, lobbyCode, mode]);
+
+    const onRematch = async () => {
+        const count = (players || []).filter((p: Player) => !p.isSpectator).length;
+        if (local) {
+            const dealt = localRematch();
+            if (!dealt.ok) return;
+            trackRoundStart({
+                mode: "pass_and_play",
+                playerCount: dealt.playerCount ?? count,
+                deckId: dealt.category || "unknown",
+                round: dealt.round ?? 1,
+                lobbyCode: String(lobbyCode || ""),
+            });
+            return;
+        }
+        const dealt = await rematch(lobbyCode as string);
+        if (!dealt?.ok) return;
+        trackRoundStart({
+            mode: modeFromPlayMode(playMode),
+            playerCount: count,
+            deckId: dealt.data?.currentGame?.category || "unknown",
+            round: dealt.data?.currentGame?.round ?? 1,
+            lobbyCode: String(lobbyCode || ""),
+        });
+    };
 
     const sorted = [...(players || [])].sort(
         (a: Player, b: Player) => (b.score || 0) - (a.score || 0)
@@ -101,7 +158,7 @@ export default function Results() {
             <div className="flex flex-col gap-3 mt-auto">
                 <PrimaryButton
                     text="Rematch"
-                    onClick={() => (local ? localRematch() : rematch(lobbyCode as string))}
+                    onClick={onRematch}
                     className="w-full"
                 />
                 <PrimaryButton

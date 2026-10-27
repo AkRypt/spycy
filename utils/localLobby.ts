@@ -170,7 +170,12 @@ export function localStartReveal() {
         role: p.userId === spyId ? SPY.SPY : SPY.DEFENDER,
     }));
     persist(lobby);
-    return { ok: true };
+    return {
+        ok: true as const,
+        category: picked.category,
+        playerCount: seats.length,
+        round: session.round,
+    };
 }
 
 export function localAdvanceReveal() {

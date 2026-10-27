@@ -4,6 +4,7 @@ import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction, deleteField } from 'firebase/firestore';
 import { GameSession, Lobby, Player } from '@/app/interfaces';
 import { constants, GAME_STATE, PLAY_MODE, PlayMode, SPY, SPY_TABLES } from '@/app/constants';
+import { modeFromPlayMode, trackLobbyJoined } from '@/utils/analytics';
 import { pickFallbackWord } from '@/app/words';
 import { makeLocalPlayerId } from '..';
 import { shouldSuppressRejoin } from '@/utils/lobbyLeave';
@@ -222,6 +223,9 @@ export const joinLobby = async (lobbyCode: string, userId: string, playerName: s
 
         const data = { ...existingLobby, ...patch };
         state.lobbyData = data;
+        if (!isHost) {
+            trackLobbyJoined(modeFromPlayMode(existingLobby.playMode));
+        }
         return { ok: true, data };
     } catch (error) {
         console.log(error);
