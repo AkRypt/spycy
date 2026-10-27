@@ -1,11 +1,11 @@
 import state from '@/app/context';
 import { auth, db } from './firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction, deleteField } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, serverTimestamp, runTransaction, deleteField } from 'firebase/firestore';
 import { GameSession, Lobby, Player } from '@/app/interfaces';
 import { constants, GAME_STATE, PLAY_MODE, PlayMode, SPY, SPY_TABLES } from '@/app/constants';
 import { modeFromPlayMode, trackLobbyJoined } from '@/utils/analytics';
-import { pickFallbackWord, pickFromPacks } from '@/app/words';
+import { pickFromPacks } from '@/app/words';
 import { makeLocalPlayerId } from '..';
 import { shouldSuppressRejoin } from '@/utils/lobbyLeave';
 
@@ -682,25 +682,14 @@ export async function setEnabledCategories(lobbyCode: string, enabledCategories:
 
 export async function getRandomWord(enabled?: string[]) {
     try {
-        const wordsRef = collection(db, SPY_TABLES.WORDS);
-        const wordsSnapshot = await getDocs(wordsRef);
-        if (!wordsSnapshot.empty) {
-            const packs: Record<string, string[]> = {};
-            wordsSnapshot.docs.forEach((wordDoc) => {
-                const data = wordDoc.data();
-                const words = Array.isArray(data?.words) ? data.words.map(String) : [];
-                const category =
-                    (typeof data?.category === "string" && data.category) || wordDoc.id;
-                packs[category] = words;
-            });
-            const picked = pickFromPacks(packs, enabled);
-            if (picked) return picked;
-            if (enabled) return null;
-        }
+        const res = await fetch('/api/words', { cache: 'no-store' });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.ok || !data.packs) return null;
+        return pickFromPacks(data.packs as Record<string, string[]>, enabled);
     } catch (error) {
         console.error("Error getting random word from Firestore:", error);
+        return null;
     }
-    return pickFallbackWord(enabled);
 }
 
 export async function addWordsToFirestore(wordsData: any) {
