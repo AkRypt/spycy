@@ -1,6 +1,12 @@
 # Spycy word decks
 
-## Firestore (preferred for live online games)
+## In-app admin
+
+1. Set server-only `ADMIN_PASSWORD` in `.env.local` (and Vercel).
+2. Open `/admin`, sign in, edit categories/words, or click **Seed defaults**.
+3. Writes go to Firestore `spycy_words` via Admin SDK (bypasses client rules).
+
+## Firestore
 
 Collection: **`spycy_words`**
 
@@ -8,14 +14,12 @@ Collection: **`spycy_words`**
 |-------------|--------|
 | category slug, e.g. `places`, `jobs`, `nature` | `{ "words": ["Airport", "Beach", …] }` |
 
-Optional: `category` string field (defaults to the document ID).
+CLI seed (Admin + `.env.local`):
 
-**How to add:** Firebase Console → Firestore → `spycy_words` → Add document → ID = category → field `words` (array of strings).
-
-There is **no in-app admin UI** for editing packs yet. Seed via Console, or call `addWordsToFirestore()` from `utils/firebase/firebaseHelpers.ts` in a one-off script/dev console.
+```bash
+node scripts/seed-spycy-words.mjs
+```
 
 ## Local fallback
 
-File: **`app/words.ts`** (`FALLBACK_WORDS`)
-
-Used when Firestore is empty or unreachable (including pass-and-play offline). Edit that object to change default categories/words in code.
+File: **`app/words.ts`** (`FALLBACK_WORDS`) — used when Firestore is empty/unreachable.
