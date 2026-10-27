@@ -48,6 +48,10 @@ export interface Lobby {
     gameState: string;
     playMode?: "online" | "hotseat";
     hostId?: string;
+    /** Category ids the next deal may use. Missing means every available category. */
+    enabledCategories?: string[];
+    /** Pass-and-play copy of the decks used to deal. Online reads Firestore instead. */
+    wordPacks?: Record<string, string[]>;
     currentGame?: GameSession | null;
     games?: GameSession[];
     createdAt?: any;

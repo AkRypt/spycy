@@ -5,7 +5,7 @@ import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, server
 import { GameSession, Lobby, Player } from '@/app/interfaces';
 import { constants, GAME_STATE, PLAY_MODE, PlayMode, SPY, SPY_TABLES } from '@/app/constants';
 import { modeFromPlayMode, trackLobbyJoined } from '@/utils/analytics';
-import { pickFallbackWord } from '@/app/words';
+import { pickFallbackWord, pickFromPacks } from '@/app/words';
 import { makeLocalPlayerId } from '..';
 import { shouldSuppressRejoin } from '@/utils/lobbyLeave';
 
@@ -417,7 +417,10 @@ async function createGameSession(lobbyData: Lobby) {
     }
 
     const randomIndex = Math.floor(Math.random() * players.length);
-    const picked = await getRandomWord();
+    const picked = await getRandomWord(lobbyData.enabledCategories);
+    if (!picked) {
+        throw new Error('Turn on at least one category');
+    }
     const spyId = players[randomIndex].userId;
 
     const previousRound = lobbyData.games && lobbyData.games.length > 0
@@ -671,30 +674,33 @@ export async function advanceVotePass(lobbyCode: string) {
  * Words functions
  * *************** */
 
-export async function getRandomWord() {
+export async function setEnabledCategories(lobbyCode: string, enabledCategories: string[]) {
+    const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+    await updateDoc(lobbyRef, { enabledCategories });
+    state.lobbyData = { ...state.lobbyData, enabledCategories };
+}
+
+export async function getRandomWord(enabled?: string[]) {
     try {
         const wordsRef = collection(db, SPY_TABLES.WORDS);
         const wordsSnapshot = await getDocs(wordsRef);
-
         if (!wordsSnapshot.empty) {
-            const randomDocIndex = Math.floor(Math.random() * wordsSnapshot.size);
-            const randomDoc = wordsSnapshot.docs[randomDocIndex];
-            const wordsArray = randomDoc.data().words;
-            const category =
-                (typeof randomDoc.data().category === "string" && randomDoc.data().category) ||
-                randomDoc.id;
-
-            if (Array.isArray(wordsArray) && wordsArray.length > 0) {
-                return {
-                    word: wordsArray[Math.floor(Math.random() * wordsArray.length)],
-                    category,
-                };
-            }
+            const packs: Record<string, string[]> = {};
+            wordsSnapshot.docs.forEach((wordDoc) => {
+                const data = wordDoc.data();
+                const words = Array.isArray(data?.words) ? data.words.map(String) : [];
+                const category =
+                    (typeof data?.category === "string" && data.category) || wordDoc.id;
+                packs[category] = words;
+            });
+            const picked = pickFromPacks(packs, enabled);
+            if (picked) return picked;
+            if (enabled) return null;
         }
     } catch (error) {
         console.error("Error getting random word from Firestore:", error);
     }
-    return pickFallbackWord();
+    return pickFallbackWord(enabled);
 }
 
 export async function addWordsToFirestore(wordsData: any) {
