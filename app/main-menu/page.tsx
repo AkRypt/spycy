@@ -12,6 +12,7 @@ import {
     shouldSuppressRejoin,
 } from '@/utils/lobbyLeave';
 import { rockSalt } from '../fonts';
+import { trackLobbyCreated } from '@/utils/analytics';
 
 export default function MainMenu() {
     const router = useRouter();
@@ -47,6 +48,7 @@ export default function MainMenu() {
             const newLobbyCode = generateLobbyCode();
             const result = await createLobby(newLobbyCode, userId, PLAY_MODE.ONLINE);
             if (result.ok) {
+                trackLobbyCreated('online');
                 router.push(`/lobby/${newLobbyCode}`);
             } else {
                 setError('Could not create online lobby. Check Firebase Auth (Anonymous) and env keys.');
@@ -70,6 +72,7 @@ export default function MainMenu() {
                 (typeof window !== 'undefined' ? localStorage.getItem('playerName') : null) ||
                 'Host';
             const lobby = createLocalHotseat(name);
+            trackLobbyCreated('pass_and_play');
             router.push(`/lobby/${lobby.lobbyCode}`);
         } catch (e) {
             console.error(e);

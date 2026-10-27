@@ -18,6 +18,7 @@ import {
     localRemovePlayer,
     localStartReveal,
 } from "@/utils/localLobby";
+import { modeFromPlayMode, trackRoundStart } from "@/utils/analytics";
 
 export default function Pregame() {
     const { lobbyCode, players, playMode, hostId } = useLobby();
@@ -40,14 +41,31 @@ export default function Pregame() {
             if (!result.ok) {
                 setError(result.error || "Could not start");
                 setStarting(false);
+                return;
             }
+            trackRoundStart({
+                mode: "pass_and_play",
+                playerCount: result.playerCount ?? activeCount,
+                deckId: result.category || "unknown",
+                round: result.round ?? 1,
+                lobbyCode: String(lobbyCode || ""),
+            });
             return;
         }
         const result = await updateLobby(lobbyCode as string, { gameState: GAME_STATE.REVEAL });
         if (!result?.ok) {
             setError((result as any)?.error || "Could not start — need enough players.");
             setStarting(false);
+            return;
         }
+        const dealt = result.data?.currentGame;
+        trackRoundStart({
+            mode: modeFromPlayMode(playMode),
+            playerCount: activeCount,
+            deckId: dealt?.category || "unknown",
+            round: dealt?.round ?? 1,
+            lobbyCode: String(lobbyCode || ""),
+        });
     };
 
     const addSeat = async (e: React.FormEvent) => {
