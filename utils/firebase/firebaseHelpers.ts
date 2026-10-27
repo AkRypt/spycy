@@ -286,12 +286,25 @@ export const setPlayerSpectator = async (
 };
 
 export const unjoinLobby = async (lobbyCode: string, userId: string) => {
+    // Always clear membership on the user doc / local state, even if the lobby doc is gone.
+    const clearMembership = async () => {
+        state.userData = { ...state.userData, playerLobbyCode: "" };
+        if (userId) {
+            try {
+                await updateUserData(userId, { playerLobbyCode: "" });
+            } catch (e) {
+                console.error("Error clearing playerLobbyCode:", e);
+            }
+        }
+    };
+
     try {
         const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {
-            return { ok: false, message: 'Lobby not found.' };
+            await clearMembership();
+            return { ok: true, message: "Lobby not found; cleared local membership." };
         }
 
         const existingLobby = lobbyDoc.data() as Lobby;
@@ -299,12 +312,13 @@ export const unjoinLobby = async (lobbyCode: string, userId: string) => {
             (player: Player) => player.userId !== userId
         );
         await updateDoc(lobbyRef, { players: updatedPlayers });
-        await updateUserData(userId, { playerLobbyCode: '' });
+        await clearMembership();
 
         return { ok: true, data: { ...existingLobby, players: updatedPlayers } };
     } catch (error) {
         console.log(error);
-        return { ok: false, message: 'An error occurred while leaving the lobby.' };
+        await clearMembership();
+        return { ok: false, message: "An error occurred while leaving the lobby." };
     }
 };
 

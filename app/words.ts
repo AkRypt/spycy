@@ -1,4 +1,8 @@
-/** Fallback word bank when Firestore `words` is empty or unreachable. */
+/**
+ * Local fallback word bank when Firestore `spycy_words` is empty or unreachable.
+ * Live decks: Firestore collection `spycy_words/{category}` → `{ words: string[] }`.
+ * See docs/word-decks.md — no in-app pack editor yet.
+ */
 export const FALLBACK_WORDS: Record<string, string[]> = {
     places: [
         "Airport", "Beach", "Casino", "Circus", "Embassy", "Hospital",
