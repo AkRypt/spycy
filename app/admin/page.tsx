@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Background, PrimaryButton, TextInput } from "@/app/components";
+import Background from "@/app/components/Background";
+import PrimaryButton from "@/app/components/buttons/PrimaryButton";
+import TextInput from "@/app/components/inputs/TextInput";
 import { formatCategoryLabel } from "@/app/words";
 
 type Packs = Record<string, string[]>;
@@ -35,8 +37,18 @@ export default function AdminPage() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [packsLoading, setPacksLoading] = useState(false);
 
   const categories = useMemo(() => Object.keys(packs).sort(), [packs]);
+
+  const applyPacks = useCallback((next: Packs) => {
+    setPacks(next);
+    const keys = Object.keys(next).sort();
+    setSelected((prev) => {
+      if (prev && next[prev]) return prev;
+      return keys[0] || "";
+    });
+  }, []);
 
   const loadPacks = useCallback(async () => {
     const { res, data } = await fetchJson("/api/admin/words");
@@ -49,36 +61,48 @@ export default function AdminPage() {
       setAuthed(false);
       return false;
     }
-    const next: Packs = data.packs || {};
-    setPacks(next);
+    applyPacks(data.packs || {});
     setAuthed(true);
-    const keys = Object.keys(next).sort();
-    setSelected((prev) => {
-      if (prev && next[prev]) return prev;
-      return keys[0] || "";
-    });
     return true;
-  }, []);
+  }, [applyPacks]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setError("");
+      const sessionP = fetchJson("/api/admin/session", undefined, 8000);
+      const packsP = fetchJson("/api/admin/words", undefined, 12000);
       try {
-        const { data } = await fetchJson("/api/admin/session", undefined, 8000);
+        const { data } = await sessionP;
         if (cancelled) return;
         setConfigured(data?.configured !== false);
-        if (data?.authenticated) {
-          try {
-            await loadPacks();
-          } catch (e: any) {
-            if (!cancelled) {
-              setAuthed(false);
-              setError(e?.name === "AbortError" ? "Timed out loading packs from Firestore." : (e?.message || "Failed to load packs"));
-            }
-          }
-        } else {
+        if (!data?.authenticated) {
           setAuthed(false);
+          return;
+        }
+        setAuthed(true);
+        setPacksLoading(true);
+        setChecking(false);
+        try {
+          const { res, data: packData } = await packsP;
+          if (cancelled) return;
+          if (res.status === 401) {
+            setAuthed(false);
+            return;
+          }
+          if (!res.ok || !packData?.ok) {
+            setError(packData?.error || `Failed to load packs (${res.status})`);
+            return;
+          }
+          applyPacks(packData.packs || {});
+        } catch (e: any) {
+          if (!cancelled) {
+            setError(
+              e?.name === "AbortError"
+                ? "Timed out loading packs from Firestore."
+                : (e?.message || "Failed to load packs")
+            );
+          }
         }
       } catch (e: any) {
         if (!cancelled) {
@@ -91,13 +115,16 @@ export default function AdminPage() {
           );
         }
       } finally {
-        if (!cancelled) setChecking(false);
+        if (!cancelled) {
+          setChecking(false);
+          setPacksLoading(false);
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [loadPacks]);
+  }, [applyPacks]);
 
   useEffect(() => {
     if (!selected) {
@@ -315,7 +342,10 @@ export default function AdminPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-4 flex-1 min-h-0">
           <div className="spycy-panel rounded-xl p-2 flex flex-col gap-1 max-h-[50vh] sm:max-h-none overflow-y-auto">
-            {categories.length === 0 && (
+            {packsLoading && (
+              <p className="text-sm text-[var(--spycy-muted)] p-2">Loading packs…</p>
+            )}
+            {!packsLoading && categories.length === 0 && (
               <p className="text-sm text-[var(--spycy-muted)] p-2">No packs yet. Seed defaults.</p>
             )}
             {categories.map((cat) => (

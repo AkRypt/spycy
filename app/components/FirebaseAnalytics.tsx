@@ -9,7 +9,8 @@ export default function FirebaseAnalytics() {
   const pathname = usePathname()
 
   useEffect(() => {
-    trackPageView(pathname || '/')
+    if (!pathname || pathname.startsWith('/admin')) return
+    trackPageView(pathname)
   }, [pathname])
 
   return null
