@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminDb } from '@/utils/firebase/admin'
 import { isAdminRequest } from '@/utils/adminAuth'
-import { SPY_TABLES } from '@/app/constants'
 import { FALLBACK_WORDS } from '@/app/words'
+import { deleteWordPack, listWordPacks, saveWordPack, seedWordPacks } from '@/utils/firebase/wordPacks'
 
 function slugifyCategory(raw: string): string {
   return raw
@@ -20,13 +19,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const db = getAdminDb()
-    const snap = await db.collection(SPY_TABLES.WORDS).get()
-    const packs: Record<string, string[]> = {}
-    snap.docs.forEach((d) => {
-      const words = d.data()?.words
-      packs[d.id] = Array.isArray(words) ? words.map(String) : []
-    })
+    const packs = await listWordPacks()
     return NextResponse.json({ ok: true, packs })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Failed to load packs' }, { status: 500 })
@@ -50,11 +43,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Category required' }, { status: 400 })
     }
 
-    const db = getAdminDb()
-    await db.collection(SPY_TABLES.WORDS).doc(category).set(
-      { words, category, updatedAt: new Date().toISOString() },
-      { merge: true }
-    )
+    await saveWordPack(category, words)
     return NextResponse.json({ ok: true, category, words })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Failed to save' }, { status: 500 })
@@ -72,8 +61,7 @@ export async function DELETE(req: NextRequest) {
     if (!category) {
       return NextResponse.json({ ok: false, error: 'Category required' }, { status: 400 })
     }
-    const db = getAdminDb()
-    await db.collection(SPY_TABLES.WORDS).doc(category).delete()
+    await deleteWordPack(category)
     return NextResponse.json({ ok: true, category })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Failed to delete' }, { status: 500 })
@@ -89,21 +77,8 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}))
     const replace = !!body?.replace
-    const db = getAdminDb()
-    const batch = db.batch()
-    const seeded: string[] = []
-
-    for (const [category, words] of Object.entries(FALLBACK_WORDS)) {
-      const ref = db.collection(SPY_TABLES.WORDS).doc(category)
-      if (replace) {
-        batch.set(ref, { words, category, updatedAt: new Date().toISOString() })
-      } else {
-        batch.set(ref, { words, category, updatedAt: new Date().toISOString() }, { merge: true })
-      }
-      seeded.push(category)
-    }
-
-    await batch.commit()
+    const seeded = Object.keys(FALLBACK_WORDS)
+    await seedWordPacks(FALLBACK_WORDS, replace)
     return NextResponse.json({ ok: true, seeded })
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || 'Seed failed' }, { status: 500 })
