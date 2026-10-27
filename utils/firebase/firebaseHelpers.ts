@@ -1,11 +1,12 @@
 import state from '@/app/context';
 import { auth, db } from './firebase';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, setDoc, getDoc, updateDoc, onSnapshot, collection, getDocs, serverTimestamp, runTransaction, deleteField } from 'firebase/firestore';
 import { GameSession, Lobby, Player } from '@/app/interfaces';
 import { constants, GAME_STATE, PLAY_MODE, PlayMode, SPY, SPY_TABLES } from '@/app/constants';
 import { pickFallbackWord } from '@/app/words';
 import { makeLocalPlayerId } from '..';
+import { shouldSuppressRejoin } from '@/utils/lobbyLeave';
 
 /** ***************
  * User functions
@@ -159,6 +160,11 @@ export const updateLobby = async (lobbyCode: string, newLobbyData: any) => {
 
 export const joinLobby = async (lobbyCode: string, userId: string, playerName: string) => {
     try {
+        // Block the leave→clear→effect race that would re-write playerLobbyCode.
+        if (shouldSuppressRejoin()) {
+            return { ok: false, message: 'Left lobby; rejoin from the main menu.' };
+        }
+
         const code = String(lobbyCode).toUpperCase();
         const lobbyRef = doc(db, SPY_TABLES.LOBBIES, code);
         const lobbyDoc = await getDoc(lobbyRef);
@@ -287,19 +293,33 @@ export const setPlayerSpectator = async (
 
 export const unjoinLobby = async (lobbyCode: string, userId: string) => {
     // Always clear membership on the user doc / local state, even if the lobby doc is gone.
+    // deleteField removes the key so reload fetch cannot resurrect a stale lobby code.
     const clearMembership = async () => {
         state.userData = { ...state.userData, playerLobbyCode: "" };
         if (userId) {
             try {
-                await updateUserData(userId, { playerLobbyCode: "" });
+                const userDocRef = doc(db, SPY_TABLES.USERS, userId);
+                await updateDoc(userDocRef, { playerLobbyCode: deleteField() });
+                state.userData = { ...state.userData, playerLobbyCode: "" };
             } catch (e) {
-                console.error("Error clearing playerLobbyCode:", e);
+                // Doc may not exist yet — fall back to empty string merge.
+                try {
+                    await updateUserData(userId, { playerLobbyCode: "" });
+                } catch (e2) {
+                    console.error("Error clearing playerLobbyCode:", e2);
+                }
             }
         }
     };
 
     try {
-        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, lobbyCode);
+        const code = String(lobbyCode || "").toUpperCase();
+        if (!code) {
+            await clearMembership();
+            return { ok: true, message: "No lobby code; cleared membership." };
+        }
+
+        const lobbyRef = doc(db, SPY_TABLES.LOBBIES, code);
         const lobbyDoc = await getDoc(lobbyRef);
 
         if (!lobbyDoc.exists()) {

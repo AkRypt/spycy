@@ -1,13 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { generateLobbyCode } from '../../utils';
-import { createLobby } from '@/utils/firebase/firebaseHelpers';
+import { createLobby, unjoinLobby } from '@/utils/firebase/firebaseHelpers';
 import { createLocalHotseat } from '@/utils/localLobby';
-import { constants, PLAY_MODE, PlayMode } from '../constants';
+import { constants, PLAY_MODE } from '../constants';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks';
 import { Background, PrimaryButton, TextInput } from '../components';
-import { SPYCY_JUST_LEFT_KEY } from '../components/LobbyCode';
+import {
+    clearSuppressRejoin,
+    shouldSuppressRejoin,
+} from '@/utils/lobbyLeave';
 import { rockSalt } from '../fonts';
 
 export default function MainMenu() {
@@ -18,20 +21,29 @@ export default function MainMenu() {
     const { userFetched, playerLobbyCode, userId, playerName } = useUser();
 
     useEffect(() => {
-        if (!userFetched || !playerLobbyCode) return;
-        // Skip auto-rejoin right after Leave so the user stays on the menu.
-        if (typeof window !== 'undefined' && sessionStorage.getItem(SPYCY_JUST_LEFT_KEY) === '1') {
-            sessionStorage.removeItem(SPYCY_JUST_LEFT_KEY);
+        if (!userFetched) return;
+
+        // After Leave: stay on menu and scrub any leftover Firestore membership
+        // so a later reload cannot auto-rejoin. Do not clear the suppress flag
+        // here — only intentional create/join clears it.
+        if (shouldSuppressRejoin()) {
+            if (playerLobbyCode && userId) {
+                void unjoinLobby(playerLobbyCode, userId);
+            }
             return;
         }
-        router.replace(`/lobby/${playerLobbyCode}`);
-    }, [userFetched, playerLobbyCode, router]);
+
+        if (playerLobbyCode) {
+            router.replace(`/lobby/${playerLobbyCode}`);
+        }
+    }, [userFetched, playerLobbyCode, userId, router]);
 
     const createOnline = async () => {
         if (!userId || busy) return;
         setBusy(true);
         setError('');
         try {
+            clearSuppressRejoin();
             const newLobbyCode = generateLobbyCode();
             const result = await createLobby(newLobbyCode, userId, PLAY_MODE.ONLINE);
             if (result.ok) {
@@ -52,6 +64,7 @@ export default function MainMenu() {
         setBusy(true);
         setError('');
         try {
+            clearSuppressRejoin();
             const name =
                 playerName ||
                 (typeof window !== 'undefined' ? localStorage.getItem('playerName') : null) ||
@@ -70,6 +83,7 @@ export default function MainMenu() {
         e.preventDefault();
         const code = lobbyCode.trim().toUpperCase();
         if (code.length !== constants.lobbyCodeLength) return;
+        clearSuppressRejoin();
         router.push(`/lobby/${code}`);
     };
 
