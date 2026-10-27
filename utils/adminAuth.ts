@@ -40,7 +40,12 @@ export function verifyAdminToken(token: string | undefined): boolean {
   }
 }
 
+export function isAdminConfigured(): boolean {
+  return !!(process.env.ADMIN_PASSWORD && process.env.ADMIN_PASSWORD.trim())
+}
+
 export function isAdminRequest(req: NextRequest): boolean {
+  if (!isAdminConfigured()) return false
   return verifyAdminToken(req.cookies.get(ADMIN_COOKIE)?.value)
 }
 

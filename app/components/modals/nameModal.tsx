@@ -23,6 +23,10 @@ export default function NameModal() {
     }, [playerName]);
 
     useEffect(() => {
+        if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin")) {
+            setShowModal(false);
+            return;
+        }
         const cached =
             typeof window !== "undefined" ? localStorage.getItem(SPY.playerName) : null;
         const hasName = !!(playerName && playerName.length > 0) || !!cached;
