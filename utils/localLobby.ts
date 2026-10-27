@@ -1,7 +1,7 @@
 import state from "@/app/context";
 import { constants, GAME_STATE, PLAY_MODE, SPY } from "@/app/constants";
 import { GameSession, Lobby, Player } from "@/app/interfaces";
-import { FALLBACK_WORDS, pickFromPacks } from "@/app/words";
+import { pickFromPacks } from "@/app/words";
 import { generateLobbyCode, makeLocalPlayerId } from ".";
 
 const STORAGE_KEY = "spycy_hotseat_lobby";
@@ -155,11 +155,10 @@ export function localStartReveal() {
     const previousRound =
         lobby.games && lobby.games.length > 0 ? lobby.games[lobby.games.length - 1].round : 0;
 
-    const source =
-        lobby.wordPacks && Object.keys(lobby.wordPacks).length > 0
-            ? lobby.wordPacks
-            : FALLBACK_WORDS;
-    const picked = pickFromPacks(source, lobby.enabledCategories);
+    if (!lobby.wordPacks || Object.keys(lobby.wordPacks).length === 0) {
+        return { ok: false, error: "Word packs are still loading" };
+    }
+    const picked = pickFromPacks(lobby.wordPacks, lobby.enabledCategories);
     if (!picked) {
         return { ok: false, error: "Turn on at least one category" };
     }

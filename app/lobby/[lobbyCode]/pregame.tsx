@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
 import { LobbyCode, PrimaryButton, TextInput } from "@/app/components";
-import { constants, GAME_STATE, PLAY_MODE, SPY_TABLES } from "@/app/constants";
+import { constants, GAME_STATE, PLAY_MODE } from "@/app/constants";
 import { Player } from "@/app/interfaces";
-import { FALLBACK_WORDS, formatCategoryLabel } from "@/app/words";
+import { formatCategoryLabel } from "@/app/words";
 import { useUser } from "@/hooks";
 import useLobby from "@/hooks/useLobby";
-import { db } from "@/utils/firebase/firebase";
 import {
     addHotseatPlayer,
     removePlayer,
@@ -32,42 +30,39 @@ export default function Pregame() {
     const [hotseatName, setHotseatName] = useState("");
     const [error, setError] = useState("");
     const [starting, setStarting] = useState(false);
-    const [catalog, setCatalog] = useState<string[]>(() => Object.keys(FALLBACK_WORDS).sort());
-    const [packs, setPacks] = useState<Record<string, string[]>>(FALLBACK_WORDS);
+    const [catalog, setCatalog] = useState<string[]>([]);
+    const [packs, setPacks] = useState<Record<string, string[]>>({});
+    const [packsState, setPacksState] = useState<"loading" | "ready" | "error">("loading");
 
     const local = playMode === PLAY_MODE.HOTSEAT && isLocalHotseatCode(String(lobbyCode || ""));
     const isHost = local || hostId === userId;
     const activeCount = (players || []).filter((p: Player) => !p.isSpectator).length;
     const saved = Array.isArray(enabledCategories) ? enabledCategories : null;
-    const enabled = saved ? catalog.filter((id) => saved.includes(id)) : catalog;
+    const selectable = catalog.filter((id) => (packs[id] || []).length > 0);
+    const enabled = saved ? selectable.filter((id) => saved.includes(id)) : selectable;
     const enabledRef = useRef(enabled);
     enabledRef.current = enabled;
-    const canStart = activeCount >= constants.minPlayers && enabled.length > 0;
+    const canStart = packsState === "ready" && activeCount >= constants.minPlayers && enabled.length > 0;
 
     useEffect(() => {
         let cancel = false;
         (async () => {
             try {
-                const snap = await getDocs(collection(db, SPY_TABLES.WORDS));
+                const res = await fetch("/api/words", { cache: "no-store" });
+                const data = await res.json().catch(() => null);
                 if (cancel) return;
-                const next: Record<string, string[]> = {};
-                snap.forEach((wordDoc) => {
-                    const data = wordDoc.data();
-                    const words = Array.isArray(data?.words)
-                        ? data.words.map(String).map((word) => word.trim()).filter(Boolean)
-                        : [];
-                    if (!words.length) return;
-                    const category =
-                        (typeof data?.category === "string" && data.category) || wordDoc.id;
-                    next[category] = words;
-                });
+                if (!res.ok || !data?.ok || !data.packs) {
+                    setPacksState("error");
+                    return;
+                }
+                const next = data.packs as Record<string, string[]>;
                 const ids = Object.keys(next).sort();
-                if (!ids.length) return;
                 setPacks(next);
                 setCatalog(ids);
+                setPacksState("ready");
                 if (isLocalHotseatCode(String(lobbyCode || ""))) localSetWordPacks(next);
             } catch {
-                if (isLocalHotseatCode(String(lobbyCode || ""))) localSetWordPacks(FALLBACK_WORDS);
+                if (!cancel) setPacksState("error");
             }
         })();
         return () => {
@@ -95,8 +90,9 @@ export default function Pregame() {
         if (!canStart || starting) return;
         setStarting(true);
         setError("");
+        const chosen = enabledRef.current;
         if (local) {
-            localSetCategories(enabled);
+            localSetCategories(chosen);
             localSetWordPacks(packs);
             const result = localStartReveal();
             if (!result.ok) {
@@ -115,7 +111,7 @@ export default function Pregame() {
         }
         const result = await updateLobby(lobbyCode as string, {
             gameState: GAME_STATE.REVEAL,
-            enabledCategories: enabled,
+            enabledCategories: chosen,
         });
         if (!result?.ok) {
             setError((result as any)?.error || "Could not start — need enough players.");
@@ -244,14 +240,24 @@ export default function Pregame() {
                     </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    {packsState === "loading" && (
+                        <p className="text-sm text-[var(--spycy-muted)]">Loading categories…</p>
+                    )}
+                    {packsState === "error" && (
+                        <p className="text-sm text-rose-300">Could not load word packs.</p>
+                    )}
+                    {packsState === "ready" && catalog.length === 0 && (
+                        <p className="text-sm text-[var(--spycy-muted)]">No word packs yet. Add some in /admin.</p>
+                    )}
                     {catalog.map((id) => {
+                        const words = packs[id] || [];
                         const on = enabled.includes(id);
                         return (
                             <button
                                 key={id}
                                 type="button"
                                 aria-pressed={on}
-                                disabled={!isHost}
+                                disabled={!isHost || words.length === 0}
                                 onClick={() => toggleCategory(id)}
                                 className={`rounded-full border px-3 py-1.5 text-sm transition ${
                                     on
@@ -260,11 +266,12 @@ export default function Pregame() {
                                 } disabled:opacity-80`}
                             >
                                 {formatCategoryLabel(id)}
+                                {words.length === 0 ? " (empty)" : ""}
                             </button>
                         );
                     })}
                 </div>
-                {enabled.length === 0 && (
+                {packsState === "ready" && enabled.length === 0 && (
                     <p className="text-amber-300 text-sm mt-2">Turn on at least one category.</p>
                 )}
             </div>

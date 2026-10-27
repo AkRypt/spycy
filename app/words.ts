@@ -1,6 +1,6 @@
 /**
- * Local fallback word bank when Firestore `spycy_words` is empty or unreachable.
- * Live decks: Firestore collection `spycy_words/{category}` → `{ words: string[] }`.
+ * Seed decks for /admin "Seed defaults" only.
+ * The pre-game picker and the deal read Firestore `spycy_words` via GET /api/words.
  * Live editor: /admin (ADMIN_PASSWORD). See docs/word-decks.md.
  */
 export const FALLBACK_WORDS: Record<string, string[]> = {
@@ -53,6 +53,3 @@ export function pickFromPacks(
     };
 }
 
-export function pickFallbackWord(enabled?: string[]): WordPick | null {
-    return pickFromPacks(FALLBACK_WORDS, enabled);
-}
